@@ -41,7 +41,12 @@ public enum BranchType {
     /**
      * The XA.
      */
-    XA;
+    XA,
+
+    /**
+     * The SAGA_ANNOTATION.
+     */
+    SAGA_ANNOTATION;
 
     /**
      * Get branch type.
