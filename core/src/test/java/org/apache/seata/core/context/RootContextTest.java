@@ -31,9 +31,9 @@ import static org.assertj.core.api.Assertions.assertThat;
  */
 public class RootContextTest {
 
-    private final String DEFAULT_XID = "default_xid";
+    private static final String DEFAULT_XID = "default_xid";
 
-    private final BranchType DEFAULT_BRANCH_TYPE = BranchType.AT;
+    private static final BranchType DEFAULT_BRANCH_TYPE = BranchType.AT;
 
     /**
      * Test bind and unbind.
@@ -132,13 +132,13 @@ public class RootContextTest {
         assertThat(RootContext.unbindBranchType()).isNull();
         RootContext.bindBranchType(DEFAULT_BRANCH_TYPE);
 
-        //before bind xid, branchType is null
+        // before bind xid, branchType is null
         assertThat(RootContext.getBranchType()).isNull();
-        //after bind xid, branchType is not null
+        // after bind xid, branchType is not null
         RootContext.bind(DEFAULT_XID);
         assertThat(RootContext.getBranchType()).isEqualTo(DEFAULT_BRANCH_TYPE);
 
-        //unbind xid and branchType
+        // unbind xid and branchType
         assertThat(RootContext.unbind()).isEqualTo(DEFAULT_XID);
         assertThat(RootContext.getBranchType()).isNull();
         assertThat(RootContext.unbindBranchType()).isEqualTo(DEFAULT_BRANCH_TYPE);
@@ -154,9 +154,9 @@ public class RootContextTest {
     public void testGetBranchType() {
         RootContext.bindBranchType(DEFAULT_BRANCH_TYPE);
 
-        //before bind xid, branchType is null
+        // before bind xid, branchType is null
         assertThat(RootContext.getBranchType()).isNull();
-        //after bind xid, branchType is not null
+        // after bind xid, branchType is not null
         RootContext.bind(DEFAULT_XID);
         assertThat(RootContext.getBranchType()).isEqualTo(DEFAULT_BRANCH_TYPE);
 
@@ -217,7 +217,7 @@ public class RootContextTest {
                 RootContext.bind(DEFAULT_XID);
                 RootContext.assertNotInGlobalTransaction();
             } finally {
-                //clear
+                // clear
                 RootContext.unbind();
                 assertThat(RootContext.getXID()).isNull();
             }
@@ -242,5 +242,4 @@ public class RootContextTest {
         assertThat(RootContext.getBranchType()).isNull();
         assertThat(RootContext.unbindBranchType()).isNull();
     }
-
 }

@@ -28,11 +28,11 @@ import static org.assertj.core.api.Assertions.assertThat;
  */
 public class ContextCoreTest {
 
-    private final String FIRST_KEY = "first_key";
-    private final String FIRST_VALUE = "first_value";
-    private final String SECOND_KEY = "second_key";
-    private final String SECOND_VALUE = "second_value";
-    private final String NOT_EXIST_KEY = "not_exist_key";
+    private static final String FIRST_KEY = "first_key";
+    private static final String FIRST_VALUE = "first_value";
+    private static final String SECOND_KEY = "second_key";
+    private static final String SECOND_VALUE = "second_value";
+    private static final String NOT_EXIST_KEY = "not_exist_key";
 
     /**
      * Test put.
@@ -44,7 +44,7 @@ public class ContextCoreTest {
         assertThat(load.put(SECOND_KEY, SECOND_VALUE)).isNull();
         assertThat(load.put(FIRST_KEY, SECOND_VALUE)).isEqualTo(FIRST_VALUE);
         assertThat(load.put(SECOND_KEY, FIRST_VALUE)).isEqualTo(SECOND_VALUE);
-        //clear keys
+        // clear keys
         load.remove(FIRST_KEY);
         load.remove(SECOND_KEY);
     }
@@ -64,7 +64,7 @@ public class ContextCoreTest {
         assertThat(load.get(FIRST_KEY)).isEqualTo(SECOND_VALUE);
         assertThat(load.get(SECOND_KEY)).isEqualTo(SECOND_VALUE);
         assertThat(load.get(NOT_EXIST_KEY)).isNull();
-        //clear keys
+        // clear keys
         load.remove(FIRST_KEY);
         load.remove(SECOND_KEY);
         load.remove(NOT_EXIST_KEY);
@@ -98,5 +98,4 @@ public class ContextCoreTest {
         assertThat(load.remove(SECOND_KEY)).isEqualTo(SECOND_VALUE);
         assertThat(load.remove(NOT_EXIST_KEY)).isNull();
     }
-
 }

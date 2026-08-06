@@ -16,28 +16,26 @@
  */
 package org.apache.seata.server;
 
-import java.util.List;
-import java.util.concurrent.CopyOnWriteArrayList;
-
-import javax.annotation.Resource;
+import jakarta.annotation.Resource;
 import org.apache.seata.core.rpc.Disposable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.DisposableBean;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.CommandLineRunner;
-import org.springframework.boot.web.context.WebServerInitializedEvent;
+import org.springframework.boot.web.server.context.WebServerInitializedEvent;
 import org.springframework.context.ApplicationEvent;
 import org.springframework.context.ApplicationListener;
 import org.springframework.core.Ordered;
 import org.springframework.stereotype.Component;
 
+import java.util.List;
+import java.util.concurrent.CopyOnWriteArrayList;
 
 /**
  */
 @Component
-public class ServerRunner implements CommandLineRunner, DisposableBean,
-    ApplicationListener<ApplicationEvent>, Ordered {
+public class ServerRunner implements CommandLineRunner, DisposableBean, ApplicationListener<ApplicationEvent>, Ordered {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(ServerRunner.class);
 
@@ -74,7 +72,6 @@ public class ServerRunner implements CommandLineRunner, DisposableBean,
         }
     }
 
-
     public boolean started() {
         return started;
     }
@@ -83,22 +80,22 @@ public class ServerRunner implements CommandLineRunner, DisposableBean,
     public void destroy() throws Exception {
 
         if (LOGGER.isDebugEnabled()) {
-            LOGGER.debug("destoryAll starting");
+            LOGGER.debug("destroyAll starting");
         }
-
         for (Disposable disposable : DISPOSABLE_LIST) {
             disposable.destroy();
         }
 
         if (LOGGER.isDebugEnabled()) {
-            LOGGER.debug("destoryAll finish");
+            LOGGER.debug("destroyAll finish");
         }
+        DISPOSABLE_LIST.clear();
     }
 
     @Override
     public void onApplicationEvent(ApplicationEvent event) {
         if (event instanceof WebServerInitializedEvent) {
-            this.port = ((WebServerInitializedEvent)event).getWebServer().getPort();
+            this.port = ((WebServerInitializedEvent) event).getWebServer().getPort();
         }
     }
 

@@ -69,9 +69,9 @@ public class ProtocolEncoderV0 extends MessageToByteEncoder implements ProtocolE
 
             out.writeShort(ProtocolConstantsV0.MAGIC);
             int flag = (msg.isAsync() ? ProtocolConstantsV0.FLAG_ASYNC : 0)
-                | (msg.isHeartbeat() ? ProtocolConstantsV0.FLAG_HEARTBEAT : 0)
-                | (msg.isRequest() ? ProtocolConstantsV0.FLAG_REQUEST : 0)
-                | (msg.isSeataCodec() ? ProtocolConstantsV0.FLAG_SEATA_CODEC : 0);
+                    | (msg.isHeartbeat() ? ProtocolConstantsV0.FLAG_HEARTBEAT : 0)
+                    | (msg.isRequest() ? ProtocolConstantsV0.FLAG_REQUEST : 0)
+                    | (msg.isSeataCodec() ? ProtocolConstantsV0.FLAG_SEATA_CODEC : 0);
 
             out.writeShort((short) flag);
 
@@ -82,7 +82,7 @@ public class ProtocolEncoderV0 extends MessageToByteEncoder implements ProtocolE
             }
 
             byte[] bodyBytes = null;
-            Serializer serializer = SerializerServiceLoader.load(SerializerType.getByCode(codec), ProtocolConstants.VERSION_0);
+            Serializer serializer = SerializerServiceLoader.load(SerializerType.getByCode(codec), protocolVersion());
             bodyBytes = serializer.serialize(msg.getBody());
 
             if (msg.isSeataCodec()) {
@@ -110,12 +110,17 @@ public class ProtocolEncoderV0 extends MessageToByteEncoder implements ProtocolE
     protected void encode(ChannelHandlerContext ctx, Object msg, ByteBuf out) throws Exception {
         try {
             if (msg instanceof RpcMessage) {
-                encode((RpcMessage)msg, out);
+                encode((RpcMessage) msg, out);
             } else {
                 throw new UnsupportedOperationException("Not support this class:" + msg.getClass());
             }
         } catch (Throwable e) {
             LOGGER.error("Encode request error!", e);
         }
+    }
+
+    @Override
+    public byte protocolVersion() {
+        return ProtocolConstants.VERSION_0;
     }
 }

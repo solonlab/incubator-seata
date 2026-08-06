@@ -16,18 +16,17 @@
  */
 package org.apache.seata.saga.statelang.parser.impl;
 
-import java.util.Map;
+import org.apache.seata.common.json.JsonSerializer;
+import org.apache.seata.common.json.JsonSerializerFactory;
 import org.apache.seata.common.util.StringUtils;
 import org.apache.seata.saga.statelang.domain.DomainConstants;
 import org.apache.seata.saga.statelang.domain.RecoverStrategy;
 import org.apache.seata.saga.statelang.domain.State;
-import org.apache.seata.saga.statelang.domain.StateType;
 import org.apache.seata.saga.statelang.domain.StateMachine;
+import org.apache.seata.saga.statelang.domain.StateType;
 import org.apache.seata.saga.statelang.domain.impl.AbstractTaskState;
 import org.apache.seata.saga.statelang.domain.impl.BaseState;
 import org.apache.seata.saga.statelang.domain.impl.StateMachineImpl;
-import org.apache.seata.saga.statelang.parser.JsonParser;
-import org.apache.seata.saga.statelang.parser.JsonParserFactory;
 import org.apache.seata.saga.statelang.parser.StateMachineParser;
 import org.apache.seata.saga.statelang.parser.StateParser;
 import org.apache.seata.saga.statelang.parser.StateParserFactory;
@@ -35,6 +34,8 @@ import org.apache.seata.saga.statelang.parser.utils.DesignerJsonTransformer;
 import org.apache.seata.saga.statelang.validator.StateMachineValidator;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import java.util.Map;
 
 /**
  * State machine language parser
@@ -57,15 +58,15 @@ public class StateMachineParserImpl implements StateMachineParser {
     @Override
     public StateMachine parse(String json) {
 
-        JsonParser jsonParser = JsonParserFactory.getJsonParser(jsonParserName);
-        if (jsonParser == null) {
-            throw new RuntimeException("Cannot find JsonParer by name: " + jsonParserName);
+        JsonSerializer jsonSerializer = JsonSerializerFactory.getSerializer(jsonParserName);
+        if (jsonSerializer == null) {
+            throw new RuntimeException("Cannot find JsonSerializer by name: " + jsonParserName);
         }
-        Map<String, Object> node = jsonParser.parse(json, Map.class, true);
+        Map<String, Object> node = jsonSerializer.parseObject(json, Map.class, true);
         if (DesignerJsonTransformer.isDesignerJson(node)) {
             node = DesignerJsonTransformer.toStandardJson(node);
             if (LOGGER.isDebugEnabled()) {
-                LOGGER.debug("===== Transformed standard state language:\n{}", jsonParser.toJsonString(node, true));
+                LOGGER.debug("===== Transformed standard state language:\n{}", jsonSerializer.toJSONString(node, true));
             }
         }
 

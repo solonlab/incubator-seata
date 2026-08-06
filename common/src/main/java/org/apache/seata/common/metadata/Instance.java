@@ -16,7 +16,6 @@
  */
 package org.apache.seata.common.metadata;
 
-
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
@@ -32,15 +31,16 @@ public class Instance {
     private String unit;
     private Node.Endpoint control;
     private Node.Endpoint transaction;
+    private Node.Endpoint internal;
     private double weight = 1.0;
     private boolean healthy = true;
     private long term;
     private long timestamp;
+    private String version;
     private ClusterRole role = ClusterRole.MEMBER;
     private Map<String, Object> metadata = new HashMap<>();
 
-    private Instance() {
-    }
+    private Instance() {}
 
     public static Instance getInstance() {
         return SingletonHolder.SERVER_INSTANCE;
@@ -49,7 +49,6 @@ public class Instance {
     public static List<Instance> getInstances() {
         return SingletonHolder.SERVER_INSTANCES;
     }
-
 
     public String getNamespace() {
         return namespace;
@@ -119,7 +118,6 @@ public class Instance {
         return term;
     }
 
-
     public void setTerm(long term) {
         this.term = term;
     }
@@ -161,7 +159,6 @@ public class Instance {
         return Objects.equals(control, instance.control) && Objects.equals(transaction, instance.transaction);
     }
 
-
     public String toJsonString(ObjectMapper objectMapper) {
         try {
             return objectMapper.writeValueAsString(this);
@@ -170,6 +167,15 @@ public class Instance {
         }
     }
 
+    public String getVersion() {
+        return version;
+    }
+
+    public void setVersion(String version) {
+        this.version = version;
+    }
+
+    @Override
     public Instance clone() {
         Instance instance = new Instance();
         instance.setNamespace(namespace);
@@ -182,14 +188,21 @@ public class Instance {
         instance.setTerm(term);
         instance.setTimestamp(timestamp);
         instance.setMetadata(metadata);
+        instance.setVersion(this.getVersion());
+        instance.setInternal(this.getInternal());
         return instance;
+    }
+
+    public Node.Endpoint getInternal() {
+        return internal;
+    }
+
+    public void setInternal(Node.Endpoint internal) {
+        this.internal = internal;
     }
 
     private static class SingletonHolder {
         private static final Instance SERVER_INSTANCE = new Instance();
         private static final List<Instance> SERVER_INSTANCES = new ArrayList<>();
     }
-
-
 }
-

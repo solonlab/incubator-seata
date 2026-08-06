@@ -16,6 +16,7 @@
  */
 package org.apache.seata.saga.engine.pcext.utils;
 
+import org.apache.seata.common.lock.ResourceLock;
 import org.apache.seata.common.util.CollectionUtils;
 import org.apache.seata.common.util.StringUtils;
 import org.apache.seata.saga.engine.expression.Expression;
@@ -31,15 +32,18 @@ import java.util.List;
 import java.util.Map;
 
 /**
- *
  * ParameterUtils
  *
  */
 public class ParameterUtils {
 
-    public static List<Object> createInputParams(ExpressionResolver expressionResolver,
-                                                 StateInstanceImpl stateInstance,
-                                                 AbstractTaskState serviceTaskState, Object variablesFrom) {
+    private static final ResourceLock INPUT_LOCK = new ResourceLock();
+
+    public static List<Object> createInputParams(
+            ExpressionResolver expressionResolver,
+            StateInstanceImpl stateInstance,
+            AbstractTaskState serviceTaskState,
+            Object variablesFrom) {
         List<Object> inputAssignments = serviceTaskState.getInput();
         if (CollectionUtils.isEmpty(inputAssignments)) {
             return new ArrayList<>(0);
@@ -47,7 +51,7 @@ public class ParameterUtils {
 
         List<Object> inputExpressions = serviceTaskState.getInputExpressions();
         if (inputExpressions == null) {
-            synchronized (serviceTaskState) {
+            try (ResourceLock ignored = INPUT_LOCK.obtain()) {
                 inputExpressions = serviceTaskState.getInputExpressions();
                 if (inputExpressions == null) {
                     inputExpressions = new ArrayList<>(inputAssignments.size());
@@ -67,8 +71,8 @@ public class ParameterUtils {
         return inputValues;
     }
 
-    public static Map<String, Object> createOutputParams(ExpressionResolver expressionResolver,
-                                                         AbstractTaskState serviceTaskState, Object variablesFrom) {
+    public static Map<String, Object> createOutputParams(
+            ExpressionResolver expressionResolver, AbstractTaskState serviceTaskState, Object variablesFrom) {
         Map<String, Object> outputAssignments = serviceTaskState.getOutput();
         if (CollectionUtils.isEmpty(outputAssignments)) {
             return new LinkedHashMap<>(0);
@@ -76,13 +80,13 @@ public class ParameterUtils {
 
         Map<String, Object> outputExpressions = serviceTaskState.getOutputExpressions();
         if (outputExpressions == null) {
-            synchronized (serviceTaskState) {
+            try (ResourceLock ignored = INPUT_LOCK.obtain()) {
                 outputExpressions = serviceTaskState.getOutputExpressions();
                 if (outputExpressions == null) {
                     outputExpressions = new LinkedHashMap<>(outputAssignments.size());
                     for (Map.Entry<String, Object> entry : outputAssignments.entrySet()) {
-                        outputExpressions.put(entry.getKey(),
-                                createValueExpression(expressionResolver, entry.getValue()));
+                        outputExpressions.put(
+                                entry.getKey(), createValueExpression(expressionResolver, entry.getValue()));
                     }
                 }
                 serviceTaskState.setOutputExpressions(outputExpressions);
@@ -97,14 +101,16 @@ public class ParameterUtils {
 
     public static Object getValue(Object valueExpression, Object variablesFrom, StateInstance stateInstance) {
         if (valueExpression instanceof Expression) {
-            Object value = ((Expression)valueExpression).getValue(variablesFrom);
-            if (value != null && stateInstance != null && StringUtils.isEmpty(stateInstance.getBusinessKey())
+            Object value = ((Expression) valueExpression).getValue(variablesFrom);
+            if (value != null
+                    && stateInstance != null
+                    && StringUtils.isEmpty(stateInstance.getBusinessKey())
                     && valueExpression instanceof SequenceExpression) {
                 stateInstance.setBusinessKey(String.valueOf(value));
             }
             return value;
         } else if (valueExpression instanceof Map) {
-            Map<String, Object> mapValueExpression = (Map<String, Object>)valueExpression;
+            Map<String, Object> mapValueExpression = (Map<String, Object>) valueExpression;
             Map<String, Object> mapValue = new LinkedHashMap<>();
             mapValueExpression.forEach((key, value) -> {
                 value = getValue(value, variablesFrom, stateInstance);
@@ -114,7 +120,7 @@ public class ParameterUtils {
             });
             return mapValue;
         } else if (valueExpression instanceof List) {
-            List<Object> listValueExpression = (List<Object>)valueExpression;
+            List<Object> listValueExpression = (List<Object>) valueExpression;
             List<Object> listValue = new ArrayList<>(listValueExpression.size());
             for (Object aValueExpression : listValueExpression) {
                 listValue.add(getValue(aValueExpression, variablesFrom, stateInstance));
@@ -125,28 +131,27 @@ public class ParameterUtils {
         }
     }
 
-    public static Object createValueExpression(ExpressionResolver expressionResolver,
-                                               Object paramAssignment) {
+    public static Object createValueExpression(ExpressionResolver expressionResolver, Object paramAssignment) {
 
         Object valueExpression;
 
         if (paramAssignment instanceof Expression) {
             valueExpression = paramAssignment;
         } else if (paramAssignment instanceof Map) {
-            Map<String, Object> paramMapAssignment = (Map<String, Object>)paramAssignment;
+            Map<String, Object> paramMapAssignment = (Map<String, Object>) paramAssignment;
             Map<String, Object> paramMap = new LinkedHashMap<>(paramMapAssignment.size());
             paramMapAssignment.forEach((paramName, valueAssignment) -> {
                 paramMap.put(paramName, createValueExpression(expressionResolver, valueAssignment));
             });
             valueExpression = paramMap;
         } else if (paramAssignment instanceof List) {
-            List<Object> paramListAssignment = (List<Object>)paramAssignment;
+            List<Object> paramListAssignment = (List<Object>) paramAssignment;
             List<Object> paramList = new ArrayList<>(paramListAssignment.size());
             for (Object aParamAssignment : paramListAssignment) {
                 paramList.add(createValueExpression(expressionResolver, aParamAssignment));
             }
             valueExpression = paramList;
-        } else if (paramAssignment instanceof String && ((String)paramAssignment).startsWith("$")) {
+        } else if (paramAssignment instanceof String && ((String) paramAssignment).startsWith("$")) {
             valueExpression = expressionResolver.getExpression((String) paramAssignment);
         } else {
             valueExpression = paramAssignment;

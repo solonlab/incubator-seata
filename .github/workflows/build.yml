@@ -21,9 +21,16 @@ on:
     branches: [ 2.x, develop, master ]
   pull_request:
     branches: [ 2.x, develop, master ]
+    types: [opened, reopened, synchronize]
+    paths-ignore:
+      - '**.md'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
-  # job 1: Test based on java 8, 17 and 21. Do not checkstyle.
+  # job 1: Test based on java 8, 17, 21 and 25.
   build:
     name: "build"
     services:
@@ -36,6 +43,7 @@ jobs:
         image: nacos/nacos-server:v2.4.2
         ports:
           - 8848:8848
+          - 9848:9848
         env:
           MODE: standalone
           SPRING_SECURITY_ENABLED: false
@@ -44,11 +52,13 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        java: [ 8, 17, 21 ]
+        java: [ 8, 17, 21, 25 ]
     steps:
       # step 1
       - name: "Checkout"
         uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
       # step 2
       - name: "Use Python 3.x"
         uses: actions/setup-python@v2
@@ -63,20 +73,55 @@ jobs:
       # step 4
       - name: "Print maven version"
         run: ./mvnw -version
-      # step 5.1
-      - name: "Test, Check style, Check PMD, Check license with Maven and Java8"
+      # step 5
+      - name: "Restore local maven repository cache"
+        uses: actions/cache/restore@v4
+        id: cache-maven-repository
+        with:
+         path: ~/.m2/repository
+         key: ${{ runner.os }}-maven-${{ hashFiles('**/pom.xml') }}-${{ env.TODAY }}
+         restore-keys: |
+           ${{ runner.os }}-maven-${{ hashFiles('**/pom.xml') }}
+           ${{ runner.os }}-maven-
+      # step 6.1：Support GitHub Actions, local shell
+      - name: Checkstyle
+        if: matrix.java == '25'
+        run: |
+          GITHUB_BASE_REF=${GITHUB_BASE_REF:-2.x}
+          echo "GITHUB_BASE_REF: $GITHUB_BASE_REF"
+          if [ "$GITHUB_ACTIONS" = "true" ]; then
+            PR_HEAD_SHA="${{ github.event.pull_request.head.sha }}"
+          else
+            PR_HEAD_SHA=""
+          fi
+          HEAD_SHA=${PR_HEAD_SHA:-HEAD}
+          echo "Pull Request Head SHA: $HEAD_SHA"
+          export CHANGED_FILES=$(git diff --name-only --diff-filter=AM origin/$GITHUB_BASE_REF...$HEAD_SHA)
+          echo "CHANGED_FILES: $CHANGED_FILES"
+          export CHECKSTYLE_INCLUDES=$(echo "$CHANGED_FILES" | grep '\.java$' | sed -e 's#.*src/main/java/##g' -e 's#.*src/test/java/##g' | tr '\n' ',')
+          echo "CHECKSTYLE_INCLUDES: $CHECKSTYLE_INCLUDES"
+          mvn -T 4C -e -B clean checkstyle:check -Dcheckstyle.skip=false -Dcheckstyle.includes=$CHECKSTYLE_INCLUDES
+      # step 6.2
+      - name: "Test, Check license with Maven and Java8"
         if: matrix.java == '8'
         run: |
           ./mvnw -T 4C clean test \
-                 -Dcheckstyle.skip=false -Dpmd.skip=false -Dlicense.skip=false -DredisCaseEnabled=true \
-                 -e -B -Dorg.slf4j.simpleLogger.log.org.apache.maven.cli.transfer.Slf4jMavenTransferListener=warn;
-      # step 5.2
+                 -Dlicense.skip=false -DredisCaseEnabled=true -DnacosCaseEnabled=true \
+                 -e -B -Dorg.slf4j.simpleLogger.log.org.apache.maven.cli.transfer.Slf4jMavenTransferListener=warn
+      # step 6.3
       - name: "Test with Maven and Java${{ matrix.java }}"
         if: matrix.java != '8'
         run: |
           ./mvnw -T 4C clean test \
                  -e -B -Dorg.slf4j.simpleLogger.log.org.apache.maven.cli.transfer.Slf4jMavenTransferListener=warn;
-      # step 6
+      # step 7
+      - name: "Save local maven repository cache"
+        uses: actions/cache/save@v4
+        if: steps.cache-maven-repository.outputs.cache-hit != 'true'
+        with:
+          path: ~/.m2/repository
+          key: ${{ runner.os }}-maven-${{ hashFiles('**/pom.xml') }}-${{ env.TODAY }}
+      # step 8
       - name: "Codecov"
         if: matrix.java == '8'
         uses: codecov/codecov-action@v4.0.1
@@ -86,9 +131,9 @@ jobs:
         env:
           CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
 
-  # job 2: Build on 'arm64v8/ubuntu' OS (Skip tests).
+  # job 2: Build and Release on 'arm64v8/ubuntu' OS (Skip tests).
   build_arm64-binary:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04-arm
     if: ${{ github.event_name == 'push' && (github.ref_name == 'develop' || github.ref_name == 'snapshot' || github.ref_name == '2.x') }}
     strategy:
       fail-fast: false
@@ -97,24 +142,18 @@ jobs:
       - name: "Checkout"
         uses: actions/checkout@v3
       # step 2
-      - name: "Set up QEMU"
-        id: qemu
-        uses: docker/setup-qemu-action@v3
+      - name: "Set up Java JDK 25"
+        uses: actions/setup-java@v3.12.0
         with:
-          platforms: arm64
-      - name: "Set up Docker Buildx"
-        uses: docker/setup-buildx-action@v3
+          distribution: 'zulu'
+          java-version: 25
+      # step 4
+      - name: "Print maven version"
+        run: ./mvnw -version
       # step 3
-      - name: "Build with Maven on 'arm64v8/ubuntu:20.04' OS (Skip tests)"
+      - name: "Build with Maven on 'ubuntu:24.04-arm' OS (Skip tests)"
         run: |
-          docker run --rm -v ${{ github.workspace }}:/ws:rw --workdir=/ws \
-            --platform linux/arm64 arm64v8/ubuntu:20.04 \
-            bash -exc 'apt-get update -y && \
-                       apt-get install maven -y && \
-                       apt-get install -y python3 python3-pip python3-distutils && \
-                       apt-get install -y build-essential && \
-                       mvn -version && \
-                       mvn clean install \
-                           -Prelease-seata \
-                           -DskipTests \
-                           -e -B -Dorg.slf4j.simpleLogger.log.org.apache.maven.cli.transfer.Slf4jMavenTransferListener=warn'
+          ./mvnw -T 4C clean install \
+              -Prelease-seata \
+              -DskipTests \
+              -e -B -Dorg.slf4j.simpleLogger.log.org.apache.maven.cli.transfer.Slf4jMavenTransferListener=warn

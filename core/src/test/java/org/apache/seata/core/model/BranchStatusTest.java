@@ -29,7 +29,7 @@ public class BranchStatusTest {
     private static final int REGISTERED_CODE = 1;
     private static final int NONE = 99;
     private static final int MIN_CODE = 0;
-    private static final int Max_CODE = 10;
+    private static final int MAX_CODE = 10;
 
     @Test
     public void testGetCode() {
@@ -54,13 +54,12 @@ public class BranchStatusTest {
         Assertions.assertThrows(ShouldNeverHappenException.class, () -> BranchStatus.get(NONE));
     }
 
-
     @Test
     public void testGetByCode() {
         BranchStatus branchStatusOne = BranchStatus.get(MIN_CODE);
         Assertions.assertEquals(branchStatusOne, BranchStatus.Unknown);
 
-        BranchStatus branchStatusTwo = BranchStatus.get(Max_CODE);
+        BranchStatus branchStatusTwo = BranchStatus.get(MAX_CODE);
         Assertions.assertEquals(branchStatusTwo, BranchStatus.PhaseTwo_RollbackFailed_Unretryable);
 
         Assertions.assertThrows(ShouldNeverHappenException.class, () -> BranchStatus.get(NONE));

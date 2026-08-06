@@ -16,11 +16,10 @@
  */
 package org.apache.seata.server.console.controller;
 
-import javax.annotation.Resource;
-
+import jakarta.annotation.Resource;
+import org.apache.seata.common.result.PageResult;
 import org.apache.seata.common.result.SingleResult;
 import org.apache.seata.server.console.entity.param.GlobalSessionParam;
-import org.apache.seata.common.result.PageResult;
 import org.apache.seata.server.console.entity.vo.GlobalSessionVO;
 import org.apache.seata.server.console.service.GlobalSessionService;
 import org.slf4j.Logger;

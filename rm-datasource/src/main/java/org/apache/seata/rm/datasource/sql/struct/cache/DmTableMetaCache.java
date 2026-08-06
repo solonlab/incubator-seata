@@ -28,6 +28,9 @@ import org.apache.seata.sqlparser.util.JdbcConstants;
 import java.sql.DatabaseMetaData;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.util.LinkedHashSet;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
  * The type Table meta cache.
@@ -57,19 +60,23 @@ public class DmTableMetaCache extends OracleTableMetaCache {
     protected TableMeta resultSetMetaToSchema(DatabaseMetaData dbmd, String tableName) throws SQLException {
         TableMeta result = new TableMeta();
 
-        TableNameMeta tableNameMeta = toTableNameMeta(tableName, dbmd.getConnection().getSchema());
+        TableNameMeta tableNameMeta =
+                toTableNameMeta(tableName, dbmd.getConnection().getSchema());
         result.setTableName(tableNameMeta.getTableName());
         result.setOriginalTableName(tableName);
         try (ResultSet rsColumns = dbmd.getColumns("", tableNameMeta.getSchema(), tableNameMeta.getTableName(), "%");
-             ResultSet rsIndex = dbmd.getIndexInfo(null, tableNameMeta.getSchema(), tableNameMeta.getTableName(), false, true);
-             ResultSet rsPrimary = dbmd.getPrimaryKeys(null, tableNameMeta.getSchema(), tableNameMeta.getTableName())) {
+                ResultSet rsIndex =
+                        dbmd.getIndexInfo(null, tableNameMeta.getSchema(), tableNameMeta.getTableName(), false, true);
+                ResultSet rsPrimary =
+                        dbmd.getPrimaryKeys(null, tableNameMeta.getSchema(), tableNameMeta.getTableName())) {
             processColumns(result, rsColumns);
 
             processIndexes(result, rsIndex);
 
             processPrimaries(result, rsPrimary);
             if (result.getAllIndexes().isEmpty()) {
-                throw new ShouldNeverHappenException(String.format("Could not found any index in the table: %s", tableName));
+                throw new ShouldNeverHappenException(
+                        String.format("Could not found any index in the table: %s", tableName));
             }
         }
 
@@ -117,19 +124,53 @@ public class DmTableMetaCache extends OracleTableMetaCache {
     }
 
     protected void processPrimaries(TableMeta tableMeta, ResultSet rs) throws SQLException {
+        // Collect primary key column names that couldn't be matched directly by PK_NAME
+        // In Oracle/DM: when primary key constraint name differs from unique index name,
+        // we need to match by column names instead
+        Set<String> unmatchedPkColumns = new LinkedHashSet<>();
+
+        // Iterate through each row of getPrimaryKeys() result set
+        // For composite primary key, there will be multiple rows with same PK_NAME
         while (rs.next()) {
-            String pkColName;
-            try {
-                pkColName = rs.getString("COLUMN_NAME");
-            } catch (Exception e) {
-                pkColName = rs.getString("PK_NAME");
+            String pkConstraintName = getStringSafely(rs, "PK_NAME");
+            String pkColName = getStringSafely(rs, "COLUMN_NAME");
+            if (StringUtils.isBlank(pkColName)) {
+                pkColName = pkConstraintName;
             }
 
-            String finalPkColName = pkColName;
-            for (IndexMeta i : tableMeta.getAllIndexes().values()) {
-                i.getValues().stream()
-                        .filter(c -> finalPkColName.equals(c.getColumnName()))
-                        .forEach(c -> i.setIndextype(IndexType.PRIMARY));
+            // Strategy 1: Try direct match by PK constraint name
+            // If the index name matches the primary key constraint name, mark it as PRIMARY
+            if (StringUtils.isNotBlank(pkConstraintName)
+                    && tableMeta.getAllIndexes().containsKey(pkConstraintName)) {
+                IndexMeta index = tableMeta.getAllIndexes().get(pkConstraintName);
+                index.setIndextype(IndexType.PRIMARY);
+            } else {
+                // Save columns for Strategy 2: fallback column-based matching
+                if (StringUtils.isNotBlank(pkColName)) {
+                    unmatchedPkColumns.add(pkColName.toUpperCase());
+                }
+            }
+        }
+
+        // Strategy 2: Fallback - find index whose columns match the primary key columns
+        // This handles the case where PK constraint name differs from unique index name
+        if (!unmatchedPkColumns.isEmpty()) {
+            for (IndexMeta index : tableMeta.getAllIndexes().values()) {
+                // Only check UNIQUE indexes as candidates (primary key is always unique)
+                if (index.getIndextype().value() == IndexType.UNIQUE.value()) {
+                    // Build index column set, normalized to uppercase and deduplicated
+                    Set<String> indexColsSet = index.getValues().stream()
+                            .filter(col -> col != null && StringUtils.isNotBlank(col.getColumnName()))
+                            .map(col -> col.getColumnName().toUpperCase())
+                            .collect(Collectors.toSet());
+
+                    // If sets are equal, this index exactly matches primary key columns
+                    if (indexColsSet.equals(unmatchedPkColumns)) {
+                        index.setIndextype(IndexType.PRIMARY);
+                        // Each table has only one primary key
+                        break;
+                    }
+                }
             }
         }
     }
@@ -172,5 +213,13 @@ public class DmTableMetaCache extends OracleTableMetaCache {
             result.setIndextype(IndexType.NORMAL);
         }
         return result;
+    }
+
+    private static String getStringSafely(ResultSet rs, String columnLabel) {
+        try {
+            return rs.getString(columnLabel);
+        } catch (Exception e) {
+            return null;
+        }
     }
 }

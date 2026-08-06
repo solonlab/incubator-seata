@@ -18,22 +18,36 @@ package org.apache.seata.core.rpc.netty;
 
 import io.netty.channel.Channel;
 import org.apache.commons.pool.impl.GenericKeyedObjectPool;
+import org.apache.seata.common.exception.FrameworkException;
+import org.apache.seata.core.protocol.Version;
+import org.apache.seata.discovery.registry.RegistryFactory;
+import org.apache.seata.discovery.registry.RegistryService;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
+import org.mockito.MockedStatic;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.lang.reflect.Field;
+import java.lang.reflect.Method;
+import java.net.InetSocketAddress;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
 import java.util.concurrent.ConcurrentMap;
 import java.util.function.Function;
 
 import static org.apache.seata.common.DefaultValues.DEFAULT_TX_GROUP;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.mockStatic;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -44,38 +58,40 @@ import static org.mockito.Mockito.when;
  */
 @ExtendWith(MockitoExtension.class)
 class NettyClientChannelManagerTest {
-    
+
     private NettyClientChannelManager channelManager;
-    
+
     @Mock
     private NettyPoolableFactory poolableFactory;
-    
+
     @Mock
     private Function<String, NettyPoolKey> poolKeyFunction;
-    
+
     private NettyClientConfig nettyClientConfig = new NettyClientConfig();
-    
+
     @Mock
     private NettyPoolKey nettyPoolKey;
-    
+
     @Mock
     private Channel channel;
-    
+
     @Mock
     private Channel newChannel;
-    
+
     @Mock
     private GenericKeyedObjectPool keyedObjectPool;
-    
+
+    @Mock
+    private RegistryService registryService;
+
     @BeforeEach
     void setUp() {
         channelManager = new NettyClientChannelManager(poolableFactory, poolKeyFunction, nettyClientConfig);
     }
-    
+
     @AfterEach
-    void tearDown() {
-    }
-    
+    void tearDown() {}
+
     @Test
     void assertAcquireChannelFromPool() {
         setupPoolFactory(nettyPoolKey, channel);
@@ -83,13 +99,13 @@ class NettyClientChannelManagerTest {
         verify(poolableFactory).makeObject(nettyPoolKey);
         Assertions.assertEquals(actual, channel);
     }
-    
+
     private void setupPoolFactory(final NettyPoolKey nettyPoolKey, final Channel channel) {
         when(poolKeyFunction.apply(anyString())).thenReturn(nettyPoolKey);
         when(poolableFactory.makeObject(nettyPoolKey)).thenReturn(channel);
         when(poolableFactory.validateObject(nettyPoolKey, channel)).thenReturn(true);
     }
-    
+
     @Test
     void assertAcquireChannelFromCache() {
         channelManager.getChannels().putIfAbsent("localhost", channel);
@@ -98,7 +114,7 @@ class NettyClientChannelManagerTest {
         verify(poolableFactory, times(0)).makeObject(nettyPoolKey);
         Assertions.assertEquals(actual, channel);
     }
-    
+
     @Test
     void assertAcquireChannelFromPoolContainsInactiveCache() {
         channelManager.getChannels().putIfAbsent("localhost", channel);
@@ -108,13 +124,13 @@ class NettyClientChannelManagerTest {
         verify(poolableFactory).makeObject(nettyPoolKey);
         Assertions.assertEquals(actual, newChannel);
     }
-    
+
     @Test
     void assertReconnect() {
         channelManager.getChannels().putIfAbsent("127.0.0.1:8091", channel);
         channelManager.reconnect(DEFAULT_TX_GROUP);
     }
-    
+
     @Test
     @SuppressWarnings("unchecked")
     void assertReleaseChannelWhichCacheIsEmpty() throws Exception {
@@ -123,7 +139,7 @@ class NettyClientChannelManagerTest {
         channelManager.releaseChannel(channel, "127.0.0.1:8091");
         verify(keyedObjectPool).returnObject(nettyPoolKey, channel);
     }
-    
+
     @Test
     @SuppressWarnings("unchecked")
     void assertReleaseCachedChannel() throws Exception {
@@ -134,7 +150,7 @@ class NettyClientChannelManagerTest {
         assertTrue(channelManager.getChannels().isEmpty());
         verify(keyedObjectPool).returnObject(nettyPoolKey, channel);
     }
-    
+
     @Test
     @SuppressWarnings("unchecked")
     void assertReleaseChannelNotEqualToCache() throws Exception {
@@ -145,17 +161,17 @@ class NettyClientChannelManagerTest {
         assertEquals(1, channelManager.getChannels().size());
         verify(keyedObjectPool).returnObject(nettyPoolKey, channel);
     }
-    
+
     @SuppressWarnings("unchecked")
     private void setUpReleaseChannel() {
         ConcurrentMap<String, Object> channelLocks =
-            (ConcurrentMap<String, Object>) getFieldValue("channelLocks", channelManager);
+                (ConcurrentMap<String, Object>) getFieldValue("channelLocks", channelManager);
         channelLocks.putIfAbsent("127.0.0.1:8091", new Object());
         ConcurrentMap<String, NettyPoolKey> poolKeyMap =
-            (ConcurrentMap<String, NettyPoolKey>) getFieldValue("poolKeyMap", channelManager);
+                (ConcurrentMap<String, NettyPoolKey>) getFieldValue("poolKeyMap", channelManager);
         poolKeyMap.putIfAbsent("127.0.0.1:8091", nettyPoolKey);
     }
-    
+
     private Object getFieldValue(final String fieldName, final Object targetObject) {
         try {
             Field field = targetObject.getClass().getDeclaredField(fieldName);
@@ -165,7 +181,7 @@ class NettyClientChannelManagerTest {
             throw new RuntimeException(ex);
         }
     }
-    
+
     @SuppressWarnings("unchecked")
     private void setNettyClientKeyPool() {
         try {
@@ -175,5 +191,350 @@ class NettyClientChannelManagerTest {
         } catch (Exception ex) {
             throw new RuntimeException(ex);
         }
+    }
+
+    @Test
+    void testThrowFailFastExceptionWhenFailFastIsTrue() throws Exception {
+        Method method =
+                channelManager.getClass().getDeclaredMethod("throwFailFastException", boolean.class, String.class);
+        method.setAccessible(true);
+
+        FrameworkException exception = assertThrows(FrameworkException.class, () -> {
+            try {
+                method.invoke(channelManager, true, "Test error message");
+            } catch (Exception e) {
+                if (e.getCause() instanceof FrameworkException) {
+                    throw (FrameworkException) e.getCause();
+                }
+                throw e;
+            }
+        });
+
+        assertEquals("Test error message", exception.getMessage());
+    }
+
+    @Test
+    void testThrowFailFastExceptionWhenFailFastIsFalse() throws Exception {
+        Method method =
+                channelManager.getClass().getDeclaredMethod("throwFailFastException", boolean.class, String.class);
+        method.setAccessible(true);
+
+        // Should not throw any exception
+        method.invoke(channelManager, false, "Test error message");
+    }
+
+    @Test
+    void testRegisterChannelWhenNoExistingChannel() {
+        String serverAddress = "127.0.0.1:8091";
+        String version = "1.5.0";
+        InetSocketAddress remoteAddress = new InetSocketAddress("127.0.0.1", 8091);
+
+        when(channel.remoteAddress()).thenReturn(remoteAddress);
+
+        channelManager.registerChannel(serverAddress, channel, version);
+
+        assertEquals(channel, channelManager.getChannels().get(serverAddress));
+        assertEquals(version, Version.getChannelVersion(channel));
+    }
+
+    @Test
+    void testRegisterChannelWhenExistingChannelIsActive() {
+        String serverAddress = "127.0.0.1:8091";
+        String version = "1.5.0";
+
+        when(newChannel.isActive()).thenReturn(true);
+
+        // Put an active channel first
+        channelManager.getChannels().put(serverAddress, newChannel);
+
+        channelManager.registerChannel(serverAddress, channel, version);
+
+        // Should not replace the active channel
+        assertEquals(newChannel, channelManager.getChannels().get(serverAddress));
+    }
+
+    @Test
+    void testRegisterChannelWhenExistingChannelIsInactive() {
+        String serverAddress = "127.0.0.1:8091";
+        String version = "1.5.0";
+        InetSocketAddress remoteAddress = new InetSocketAddress("127.0.0.1", 8091);
+
+        when(newChannel.isActive()).thenReturn(false);
+        when(channel.remoteAddress()).thenReturn(remoteAddress);
+
+        // Put an inactive channel first
+        channelManager.getChannels().put(serverAddress, newChannel);
+
+        channelManager.registerChannel(serverAddress, channel, version);
+
+        // Should replace the inactive channel
+        assertEquals(channel, channelManager.getChannels().get(serverAddress));
+        assertEquals(version, Version.getChannelVersion(channel));
+    }
+
+    @Test
+    void testDoReconnectWithAvailableServers() {
+        String transactionServiceGroup = "default_tx_group";
+        List<InetSocketAddress> availableServers = new ArrayList<>();
+        availableServers.add(new InetSocketAddress("127.0.0.1", 8091));
+
+        try (MockedStatic<RegistryFactory> registryFactoryMock = mockStatic(RegistryFactory.class)) {
+            registryFactoryMock.when(RegistryFactory::getInstance).thenReturn(registryService);
+            when(registryService.lookup(transactionServiceGroup)).thenReturn(availableServers);
+
+            setupPoolFactory(nettyPoolKey, channel);
+
+            // Should not throw exception
+            channelManager.doReconnect(transactionServiceGroup, false);
+
+            // Verify that acquireChannel was attempted
+            assertNotNull(channelManager.getChannels().get("127.0.0.1:8091"));
+        } catch (Exception e) {
+            Assertions.fail("Should not throw exception: " + e.getMessage());
+        }
+    }
+
+    @Test
+    void testDoReconnectWithNoAvailableServersAndFailFastTrue() {
+        String transactionServiceGroup = "default_tx_group";
+
+        try (MockedStatic<RegistryFactory> registryFactoryMock = mockStatic(RegistryFactory.class)) {
+            registryFactoryMock.when(RegistryFactory::getInstance).thenReturn(registryService);
+            when(registryService.lookup(transactionServiceGroup)).thenReturn(Collections.emptyList());
+            when(registryService.getServiceGroup(transactionServiceGroup)).thenReturn("default");
+
+            assertThrows(FrameworkException.class, () -> {
+                channelManager.doReconnect(transactionServiceGroup, true);
+            });
+        } catch (Exception e) {
+            Assertions.fail("Unexpected exception: " + e.getMessage());
+        }
+    }
+
+    @Test
+    void testDoReconnectWithNoAvailableServersAndFailFastFalse() {
+        String transactionServiceGroup = "default_tx_group";
+
+        try (MockedStatic<RegistryFactory> registryFactoryMock = mockStatic(RegistryFactory.class)) {
+            registryFactoryMock.when(RegistryFactory::getInstance).thenReturn(registryService);
+            when(registryService.lookup(transactionServiceGroup)).thenReturn(Collections.emptyList());
+            when(registryService.getServiceGroup(transactionServiceGroup)).thenReturn("default");
+
+            // Should not throw exception
+            channelManager.doReconnect(transactionServiceGroup, false);
+        } catch (Exception e) {
+            Assertions.fail("Should not throw exception: " + e.getMessage());
+        }
+    }
+
+    @Test
+    void testDoReconnectWithBlankClusterNameAndFailFastTrue() {
+        String transactionServiceGroup = "default_tx_group";
+
+        try (MockedStatic<RegistryFactory> registryFactoryMock = mockStatic(RegistryFactory.class)) {
+            registryFactoryMock.when(RegistryFactory::getInstance).thenReturn(registryService);
+            when(registryService.lookup(transactionServiceGroup)).thenReturn(Collections.emptyList());
+            when(registryService.getServiceGroup(transactionServiceGroup)).thenReturn("");
+
+            assertThrows(FrameworkException.class, () -> {
+                channelManager.doReconnect(transactionServiceGroup, true);
+            });
+        } catch (Exception e) {
+            Assertions.fail("Unexpected exception: " + e.getMessage());
+        }
+    }
+
+    @Test
+    void testDoReconnectWithBlankClusterNameAndFailFastFalse() {
+        String transactionServiceGroup = "default_tx_group";
+
+        try (MockedStatic<RegistryFactory> registryFactoryMock = mockStatic(RegistryFactory.class)) {
+            registryFactoryMock.when(RegistryFactory::getInstance).thenReturn(registryService);
+            when(registryService.lookup(transactionServiceGroup)).thenReturn(Collections.emptyList());
+            when(registryService.getServiceGroup(transactionServiceGroup)).thenReturn("");
+
+            // Should not throw exception
+            channelManager.doReconnect(transactionServiceGroup, false);
+        } catch (Exception e) {
+            Assertions.fail("Should not throw exception: " + e.getMessage());
+        }
+    }
+
+    @Test
+    void testDoReconnectWhenGetAvailServerListThrowsExceptionWithFailFastTrue() {
+        String transactionServiceGroup = "default_tx_group";
+
+        try (MockedStatic<RegistryFactory> registryFactoryMock = mockStatic(RegistryFactory.class)) {
+            registryFactoryMock.when(RegistryFactory::getInstance).thenReturn(registryService);
+            when(registryService.lookup(transactionServiceGroup)).thenThrow(new RuntimeException("Registry error"));
+
+            assertThrows(FrameworkException.class, () -> {
+                channelManager.doReconnect(transactionServiceGroup, true);
+            });
+        } catch (Exception e) {
+            Assertions.fail("Unexpected exception: " + e.getMessage());
+        }
+    }
+
+    @Test
+    void testDoReconnectWhenGetAvailServerListThrowsExceptionWithFailFastFalse() {
+        String transactionServiceGroup = "default_tx_group";
+
+        try (MockedStatic<RegistryFactory> registryFactoryMock = mockStatic(RegistryFactory.class)) {
+            registryFactoryMock.when(RegistryFactory::getInstance).thenReturn(registryService);
+            when(registryService.lookup(transactionServiceGroup)).thenThrow(new RuntimeException("Registry error"));
+
+            // Should not throw exception
+            channelManager.doReconnect(transactionServiceGroup, false);
+        } catch (Exception e) {
+            Assertions.fail("Should not throw exception: " + e.getMessage());
+        }
+    }
+
+    @Test
+    void testDoReconnectWithPartialFailures() {
+        String transactionServiceGroup = "default_tx_group";
+        List<InetSocketAddress> availableServers = new ArrayList<>();
+        availableServers.add(new InetSocketAddress("127.0.0.1", 8091));
+        availableServers.add(new InetSocketAddress("127.0.0.1", 8092));
+
+        try (MockedStatic<RegistryFactory> registryFactoryMock = mockStatic(RegistryFactory.class)) {
+            registryFactoryMock.when(RegistryFactory::getInstance).thenReturn(registryService);
+            when(registryService.lookup(transactionServiceGroup)).thenReturn(availableServers);
+
+            // Setup first server to succeed, second to fail
+            when(poolKeyFunction.apply("127.0.0.1:8091")).thenReturn(nettyPoolKey);
+            when(poolableFactory.makeObject(nettyPoolKey)).thenReturn(channel);
+            when(poolableFactory.validateObject(nettyPoolKey, channel)).thenReturn(true);
+
+            when(poolKeyFunction.apply("127.0.0.1:8092")).thenThrow(new RuntimeException("Connection failed"));
+
+            // Should not throw exception even with partial failures
+            channelManager.doReconnect(transactionServiceGroup, false);
+
+            // Verify at least one connection succeeded
+            assertFalse(channelManager.getChannels().isEmpty());
+        } catch (Exception e) {
+            Assertions.fail("Should not throw exception: " + e.getMessage());
+        }
+    }
+
+    @Test
+    void putAndGetServerVersionTest() {
+        channelManager.putServerVersion("127.0.0.1:8091", "2.1.0");
+        assertEquals("2.1.0", channelManager.getServerVersion("127.0.0.1:8091"));
+
+        channelManager.putServerVersion("127.0.0.1:8091", "2.2.0");
+        assertEquals("2.2.0", channelManager.getServerVersion("127.0.0.1:8091"));
+    }
+
+    @Test
+    void getServerVersionReturnNullWhenNotExistTest() {
+        Assertions.assertNull(channelManager.getServerVersion("127.0.0.1:9999"));
+    }
+
+    @Test
+    void clearServerVersionsTest() {
+        channelManager.putServerVersion("127.0.0.1:8091", "2.1.0");
+        channelManager.putServerVersion("127.0.0.1:8092", "2.2.0");
+
+        channelManager.clearServerVersions();
+
+        Assertions.assertNull(channelManager.getServerVersion("127.0.0.1:8091"));
+        Assertions.assertNull(channelManager.getServerVersion("127.0.0.1:8092"));
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void testDestroyChannelCleansUpServerVersionMap() throws Exception {
+        String serverAddress = "127.0.0.1:8091";
+        setNettyClientKeyPool();
+        ConcurrentMap<String, NettyPoolKey> poolKeyMap =
+                (ConcurrentMap<String, NettyPoolKey>) getFieldValue("poolKeyMap", channelManager);
+        poolKeyMap.put(serverAddress, nettyPoolKey);
+
+        channelManager.getChannels().put(serverAddress, channel);
+        channelManager.putServerVersion(serverAddress, "2.1.0");
+
+        channelManager.destroyChannel(serverAddress, channel);
+
+        assertFalse(channelManager.getChannels().containsKey(serverAddress));
+        Assertions.assertNull(channelManager.getServerVersion(serverAddress));
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void testDestroyChannelKeepsServerVersionWhenChannelMismatch() throws Exception {
+        String serverAddress = "127.0.0.1:8091";
+        setNettyClientKeyPool();
+        ConcurrentMap<String, NettyPoolKey> poolKeyMap =
+                (ConcurrentMap<String, NettyPoolKey>) getFieldValue("poolKeyMap", channelManager);
+        poolKeyMap.put(serverAddress, nettyPoolKey);
+
+        // Put a different channel in the map
+        channelManager.getChannels().put(serverAddress, newChannel);
+        channelManager.putServerVersion(serverAddress, "2.1.0");
+
+        // Destroy with a channel that doesn't match the cached one
+        channelManager.destroyChannel(serverAddress, channel);
+
+        // channels and serverVersionMap should remain since the channel didn't match
+        assertTrue(channelManager.getChannels().containsKey(serverAddress));
+        assertEquals("2.1.0", channelManager.getServerVersion(serverAddress));
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void testCleanupDisconnectedChannelMetadata() {
+        String serverAddress = "10.0.0.1:8091";
+
+        // Pre-populate maps with metadata for the address
+        channelManager.putServerVersion(serverAddress, "2.1.0");
+        ConcurrentMap<String, Object> channelLocks =
+                (ConcurrentMap<String, Object>) getFieldValue("channelLocks", channelManager);
+        channelLocks.put(serverAddress, new Object());
+        ConcurrentMap<String, NettyPoolKey> poolKeyMap =
+                (ConcurrentMap<String, NettyPoolKey>) getFieldValue("poolKeyMap", channelManager);
+        poolKeyMap.put(serverAddress, nettyPoolKey);
+
+        // No active channel for this address — cleanup should proceed
+        channelManager.cleanupDisconnectedChannelMetadata(serverAddress);
+
+        Assertions.assertNull(channelManager.getServerVersion(serverAddress));
+        assertFalse(channelLocks.containsKey(serverAddress));
+        assertFalse(poolKeyMap.containsKey(serverAddress));
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void testCleanupSkippedWhenActiveChannelExists() {
+        String serverAddress = "10.0.0.1:8091";
+
+        // Pre-populate maps and an active channel
+        channelManager.getChannels().put(serverAddress, channel);
+        channelManager.putServerVersion(serverAddress, "2.1.0");
+        ConcurrentMap<String, Object> channelLocks =
+                (ConcurrentMap<String, Object>) getFieldValue("channelLocks", channelManager);
+        channelLocks.put(serverAddress, new Object());
+        ConcurrentMap<String, NettyPoolKey> poolKeyMap =
+                (ConcurrentMap<String, NettyPoolKey>) getFieldValue("poolKeyMap", channelManager);
+        poolKeyMap.put(serverAddress, nettyPoolKey);
+
+        // Active channel exists — cleanup should be skipped
+        channelManager.cleanupDisconnectedChannelMetadata(serverAddress);
+
+        assertEquals("2.1.0", channelManager.getServerVersion(serverAddress));
+        assertTrue(channelLocks.containsKey(serverAddress));
+        assertTrue(poolKeyMap.containsKey(serverAddress));
+    }
+
+    @Test
+    void testCleanupDisconnectedChannelMetadataWithNullAddressTest() {
+        channelManager.putServerVersion("10.0.0.1:8091", "2.1.0");
+
+        channelManager.cleanupDisconnectedChannelMetadata(null);
+
+        // Should not throw and metadata should remain unchanged
+        assertEquals("2.1.0", channelManager.getServerVersion("10.0.0.1:8091"));
     }
 }

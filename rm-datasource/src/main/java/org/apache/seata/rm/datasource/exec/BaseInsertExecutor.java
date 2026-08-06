@@ -16,6 +16,27 @@
  */
 package org.apache.seata.rm.datasource.exec;
 
+import com.google.common.collect.Lists;
+import org.apache.seata.common.exception.NotSupportYetException;
+import org.apache.seata.common.exception.ShouldNeverHappenException;
+import org.apache.seata.common.util.CollectionUtils;
+import org.apache.seata.common.util.StringUtils;
+import org.apache.seata.rm.datasource.PreparedStatementProxy;
+import org.apache.seata.rm.datasource.StatementProxy;
+import org.apache.seata.rm.datasource.sql.struct.TableRecords;
+import org.apache.seata.sqlparser.SQLInsertRecognizer;
+import org.apache.seata.sqlparser.SQLParsingException;
+import org.apache.seata.sqlparser.SQLRecognizer;
+import org.apache.seata.sqlparser.struct.ColumnMeta;
+import org.apache.seata.sqlparser.struct.Null;
+import org.apache.seata.sqlparser.struct.Sequenceable;
+import org.apache.seata.sqlparser.struct.SqlDefaultExpr;
+import org.apache.seata.sqlparser.struct.SqlMethodExpr;
+import org.apache.seata.sqlparser.struct.SqlSequenceExpr;
+import org.apache.seata.sqlparser.util.ColumnUtils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import java.sql.Connection;
 import java.sql.ResultSet;
 import java.sql.SQLException;
@@ -24,33 +45,14 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.Objects;
-
-import com.google.common.collect.Lists;
-import org.apache.seata.common.exception.NotSupportYetException;
-import org.apache.seata.common.exception.ShouldNeverHappenException;
-import org.apache.seata.common.util.CollectionUtils;
-import org.apache.seata.common.util.StringUtils;
-import org.apache.seata.sqlparser.util.ColumnUtils;
-import org.apache.seata.rm.datasource.PreparedStatementProxy;
-import org.apache.seata.rm.datasource.StatementProxy;
-import org.apache.seata.sqlparser.struct.ColumnMeta;
-import org.apache.seata.rm.datasource.sql.struct.TableRecords;
-import org.apache.seata.sqlparser.SQLInsertRecognizer;
-import org.apache.seata.sqlparser.SQLRecognizer;
-import org.apache.seata.sqlparser.struct.Null;
-import org.apache.seata.sqlparser.struct.Sequenceable;
-import org.apache.seata.sqlparser.struct.SqlDefaultExpr;
-import org.apache.seata.sqlparser.struct.SqlMethodExpr;
-import org.apache.seata.sqlparser.struct.SqlSequenceExpr;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import java.util.Set;
 
 /**
  * The Base Insert Executor.
  */
-public abstract class BaseInsertExecutor<T, S extends Statement> extends AbstractDMLBaseExecutor<T, S> implements InsertExecutor<T> {
+public abstract class BaseInsertExecutor<T, S extends Statement> extends AbstractDMLBaseExecutor<T, S>
+        implements InsertExecutor<T> {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(BaseInsertExecutor.class);
 
@@ -63,8 +65,8 @@ public abstract class BaseInsertExecutor<T, S extends Statement> extends Abstrac
      * @param statementCallback the statement callback
      * @param sqlRecognizer     the sql recognizer
      */
-    public BaseInsertExecutor(StatementProxy<S> statementProxy, StatementCallback<T, S> statementCallback,
-                              SQLRecognizer sqlRecognizer) {
+    public BaseInsertExecutor(
+            StatementProxy<S> statementProxy, StatementCallback<T, S> statementCallback, SQLRecognizer sqlRecognizer) {
         super(statementProxy, statementCallback, sqlRecognizer);
     }
 
@@ -129,7 +131,6 @@ public abstract class BaseInsertExecutor<T, S extends Statement> extends Abstrac
         return pkIndexMap;
     }
 
-
     /**
      * parse primary key value from statement.
      * @return the primary key and values<key:primary key,value:primary key values></key:primary>
@@ -150,19 +151,12 @@ public abstract class BaseInsertExecutor<T, S extends Statement> extends Abstrac
             if (insertRows != null && !insertRows.isEmpty()) {
                 Map<Integer, ArrayList<Object>> parameters = preparedStatementProxy.getParameters();
                 final int rowSize = insertRows.size();
-                int totalPlaceholderNum = -1;
+                int totalPlaceholderNum = 0;
                 for (List<Object> row : insertRows) {
                     // oracle insert sql statement specify RETURN_GENERATED_KEYS will append :rowid on sql end
                     // insert parameter count will than the actual +1
                     if (row.isEmpty()) {
                         continue;
-                    }
-                    int currentRowPlaceholderNum = -1;
-                    for (Object r : row) {
-                        if (PLACEHOLDER.equals(r)) {
-                            totalPlaceholderNum += 1;
-                            currentRowPlaceholderNum += 1;
-                        }
                     }
                     String pkKey;
                     int pkIndex;
@@ -176,21 +170,28 @@ public abstract class BaseInsertExecutor<T, S extends Statement> extends Abstrac
                         pkIndex = entry.getValue();
                         Object pkValue = row.get(pkIndex);
                         if (PLACEHOLDER.equals(pkValue)) {
-                            int currentRowNotPlaceholderNumBeforePkIndex = 0;
-                            for (int n = 0, len = row.size(); n < len; n++) {
-                                Object r = row.get(n);
-                                if (n < pkIndex && !PLACEHOLDER.equals(r)) {
-                                    currentRowNotPlaceholderNumBeforePkIndex++;
-                                }
-                            }
-                            int idx = totalPlaceholderNum - currentRowPlaceholderNum + pkIndex - currentRowNotPlaceholderNumBeforePkIndex;
+                            int idx = getIdx(row, pkIndex, totalPlaceholderNum);
                             ArrayList<Object> parameter = parameters.get(idx + 1);
+                            if (parameter == null) {
+                                throw new SQLParsingException(String.format(
+                                        "Failed to find PreparedStatement parameter mapping for primary key. "
+                                                + "Calculated JDBC index: %d. Total mapped parameters: %d. "
+                                                + "Please verify your SQL placeholders match your query parameters.",
+                                        (idx + 1), parameters.size()));
+                            }
                             pkValues.addAll(parameter);
                         } else {
                             pkValues.add(pkValue);
                         }
                         if (!pkValuesMap.containsKey(ColumnUtils.delEscape(pkKey, getDbType()))) {
                             pkValuesMap.put(ColumnUtils.delEscape(pkKey, getDbType()), pkValues);
+                        }
+                    }
+                    for (Object r : row) {
+                        if (PLACEHOLDER.equals(r)) {
+                            totalPlaceholderNum++;
+                        } else if (r instanceof SqlMethodExpr) {
+                            totalPlaceholderNum += ((SqlMethodExpr) r).getPlaceholderCount();
                         }
                     }
                 }
@@ -202,7 +203,8 @@ public abstract class BaseInsertExecutor<T, S extends Statement> extends Abstrac
                 pkIndexMap.forEach((pkKey, pkIndex) -> {
                     List<Object> pkValues = pkValuesMap.get(pkKey);
                     if (Objects.isNull(pkValues)) {
-                        pkValuesMap.put(ColumnUtils.delEscape(pkKey, getDbType()), Lists.newArrayList(row.get(pkIndex)));
+                        pkValuesMap.put(
+                                ColumnUtils.delEscape(pkKey, getDbType()), Lists.newArrayList(row.get(pkIndex)));
                     } else {
                         pkValues.add(row.get(pkIndex));
                     }
@@ -217,6 +219,19 @@ public abstract class BaseInsertExecutor<T, S extends Statement> extends Abstrac
             throw new NotSupportYetException(String.format("not support sql [%s]", sqlRecognizer.getOriginalSQL()));
         }
         return pkValuesMap;
+    }
+
+    private static int getIdx(List<Object> row, int pkIndex, int totalPlaceholderNum) {
+        int placeholdersBeforePkInRow = 0;
+        for (int n = 0; n < pkIndex; n++) {
+            Object r = row.get(n);
+            if (PLACEHOLDER.equals(r)) {
+                placeholdersBeforePkInRow++;
+            } else if (r instanceof SqlMethodExpr) {
+                placeholdersBeforePkInRow += ((SqlMethodExpr) r).getPlaceholderCount();
+            }
+        }
+        return totalPlaceholderNum + placeholdersBeforePkInRow;
     }
 
     /**
@@ -290,11 +305,13 @@ public abstract class BaseInsertExecutor<T, S extends Statement> extends Abstrac
 
         Sequenceable sequenceable = (Sequenceable) this;
         final String sql = sequenceable.getSequenceSql(expr);
-        LOGGER.warn("Fail to get auto-generated keys, use '{}' instead. Be cautious, statement could be polluted. Recommend you set the statement to return generated keys.", sql);
+        LOGGER.warn(
+                "Fail to get auto-generated keys, use '{}' instead. Be cautious, statement could be polluted. Recommend you set the statement to return generated keys.",
+                sql);
 
         Connection conn = statementProxy.getConnection();
         try (Statement ps = conn.createStatement();
-             ResultSet genKeys = ps.executeQuery(sql)) {
+                ResultSet genKeys = ps.executeQuery(sql)) {
 
             pkValues = new ArrayList<>();
             while (genKeys.next()) {
@@ -326,11 +343,13 @@ public abstract class BaseInsertExecutor<T, S extends Statement> extends Abstrac
 
         Sequenceable sequenceable = (Sequenceable) this;
         final String sql = sequenceable.getSequenceSql(expr);
-        LOGGER.warn("Fail to get auto-generated keys, use '{}' instead. Be cautious, statement could be polluted. Recommend you set the statement to return generated keys.", sql);
+        LOGGER.warn(
+                "Fail to get auto-generated keys, use '{}' instead. Be cautious, statement could be polluted. Recommend you set the statement to return generated keys.",
+                sql);
 
         Connection conn = statementProxy.getConnection();
         try (Statement ps = conn.createStatement();
-             ResultSet genKeys = ps.executeQuery(sql)) {
+                ResultSet genKeys = ps.executeQuery(sql)) {
 
             pkValues = new ArrayList<>();
             while (genKeys.next()) {
@@ -478,5 +497,4 @@ public abstract class BaseInsertExecutor<T, S extends Statement> extends Abstrac
         }
         return false;
     }
-
 }

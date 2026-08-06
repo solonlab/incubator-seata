@@ -120,7 +120,7 @@ public enum TransactionExceptionCode {
      * not raft leader exception code
      */
     NotRaftLeader,
-  
+
     /**
      * Lock key conflict fail fast transaction exception code.
      */
@@ -139,8 +139,12 @@ public enum TransactionExceptionCode {
     /**
      * Broken transaction exception code.
      */
-    Broken;
+    Broken,
 
+    /**
+     * Branch prepare failed transaction exception code.
+     */
+    BranchPrepareFailed;
 
     /**
      * Get transaction exception code.
@@ -149,7 +153,7 @@ public enum TransactionExceptionCode {
      * @return the transaction exception code
      */
     public static TransactionExceptionCode get(byte ordinal) {
-        return get((int)ordinal);
+        return get((int) ordinal);
     }
 
     /**
@@ -167,5 +171,4 @@ public enum TransactionExceptionCode {
         }
         return value;
     }
-
 }

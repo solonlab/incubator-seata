@@ -17,12 +17,14 @@
 package org.apache.seata.rm.tcc.json;
 
 import com.alibaba.fastjson.JSON;
-
 import org.apache.seata.common.Constants;
 import org.apache.seata.common.loader.LoadLevel;
 import org.apache.seata.integration.tx.api.json.JsonParser;
 
-
+/**
+ * @deprecated use {@link org.apache.seata.common.json.impl.FastjsonJsonSerializer} in json-common-core module instead.
+ */
+@Deprecated
 @LoadLevel(name = Constants.FASTJSON_JSON_PARSER_NAME)
 public class FastJsonParser implements JsonParser {
 

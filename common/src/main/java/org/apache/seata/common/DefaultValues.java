@@ -17,6 +17,8 @@
 package org.apache.seata.common;
 
 import java.time.Duration;
+import java.util.Arrays;
+import java.util.List;
 
 /**
  * The interface Default values.
@@ -162,6 +164,81 @@ public interface DefaultValues {
     String DEFAULT_PROTOCOL = "seata";
 
     /**
+     * The default transport thread pool type.
+     */
+    String DEFAULT_TRANSPORT_THREADPOOL = "auto";
+
+    /**
+     * The constant DEFAULT_MIN_HTTP_POOL_SIZE.
+     */
+    int DEFAULT_MIN_HTTP_POOL_SIZE = 10;
+
+    /**
+     * The constant DEFAULT_MAX_HTTP_POOL_SIZE.
+     */
+    int DEFAULT_MAX_HTTP_POOL_SIZE = 100;
+
+    /**
+     * The constant DEFAULT_MAX_HTTP_TASK_QUEUE_SIZE.
+     */
+    int DEFAULT_MAX_HTTP_TASK_QUEUE_SIZE = 1000;
+
+    /**
+     * The constant DEFAULT_HTTP_POOL_KEEP_ALIVE_TIME.
+     */
+    int DEFAULT_HTTP_POOL_KEEP_ALIVE_TIME = 500;
+
+    /**
+     * The constant DEFAULT_SERVER_SOCKET_SEND_BUF_SIZE.
+     */
+    int DEFAULT_SERVER_SOCKET_SEND_BUF_SIZE = 153600;
+
+    /**
+     * The constant DEFAULT_SERVER_SOCKET_RESV_BUF_SIZE.
+     */
+    int DEFAULT_SERVER_SOCKET_RESV_BUF_SIZE = 153600;
+
+    /**
+     * The constant DEFAULT_WRITE_BUFFER_HIGH_WATER_MARK.
+     */
+    int DEFAULT_WRITE_BUFFER_HIGH_WATER_MARK = 67108864;
+
+    /**
+     * The constant DEFAULT_WRITE_BUFFER_LOW_WATER_MARK.
+     */
+    int DEFAULT_WRITE_BUFFER_LOW_WATER_MARK = 1048576;
+
+    /**
+     * The constant DEFAULT_SO_BACK_LOG_SIZE.
+     */
+    int DEFAULT_SO_BACK_LOG_SIZE = 1024;
+
+    /**
+     * The constant DEFAULT_SERVER_CHANNEL_MAX_IDLE_TIME_SECONDS.
+     */
+    int DEFAULT_SERVER_CHANNEL_MAX_IDLE_TIME_SECONDS = 30;
+
+    /**
+     * The constant DEFAULT_MIN_SERVER_POOL_SIZE.
+     */
+    int DEFAULT_MIN_SERVER_POOL_SIZE = 50;
+
+    /**
+     * The constant DEFAULT_MAX_SERVER_POOL_SIZE.
+     */
+    int DEFAULT_MAX_SERVER_POOL_SIZE = 500;
+
+    /**
+     * The constant DEFAULT_MAX_TASK_QUEUE_SIZE.
+     */
+    int DEFAULT_MAX_TASK_QUEUE_SIZE = 20000;
+
+    /**
+     * The constant DEFAULT_KEEP_ALIVE_TIME.
+     */
+    int DEFAULT_KEEP_ALIVE_TIME = 500;
+
+    /**
      * The constant DEFAULT_TRANSPORT_HEARTBEAT.
      */
     boolean DEFAULT_TRANSPORT_HEARTBEAT = true;
@@ -245,7 +322,7 @@ public interface DefaultValues {
     /**
      * The constant SERVICE_DEFAULT_PORT.
      */
-    //currently not use and will be delete in the next version
+    // currently not use and will be delete in the next version
     @Deprecated
     int SERVICE_DEFAULT_PORT = 8091;
 
@@ -270,10 +347,15 @@ public interface DefaultValues {
     String DEFAULT_SAGA_JSON_PARSER = "fastjson";
 
     /**
+     * The default global JSON serializer.
+     */
+    String BUSINESS_ACTION_CONTEXT_JSON_PARSER = "jackson";
+
+    /**
      * The constant DEFAULT_TCC_BUSINESS_ACTION_CONTEXT_JSON_PARSER.
      */
-    // default tcc business action context json parser
-    String DEFAULT_TCC_BUSINESS_ACTION_CONTEXT_JSON_PARSER = "fastjson";
+    @Deprecated
+    String DEFAULT_TCC_BUSINESS_ACTION_CONTEXT_JSON_PARSER = BUSINESS_ACTION_CONTEXT_JSON_PARSER;
 
     /**
      * The constant DEFAULT_SERVER_ENABLE_CHECK_AUTH.
@@ -312,7 +394,7 @@ public interface DefaultValues {
     /**
      * the constant DEFAULT_RETRY_DEAD_THRESHOLD
      */
-    int DEFAULT_RETRY_DEAD_THRESHOLD = 2 * 60 * 1000 + 10 * 1000;
+    int DEFAULT_RETRY_DEAD_THRESHOLD = 70 * 1000;
 
     /**
      * the constant DEFAULT_END_STATE_RETRY_DEAD_THRESHOLD
@@ -536,4 +618,30 @@ public interface DefaultValues {
      * The constant DEFAULT_RAFT_SSL_ENABLED.
      */
     boolean DEFAULT_RAFT_SSL_ENABLED = false;
+
+    List<String> DEFAULT_XSS_KEYWORDS = Arrays.asList(
+            "<script>",
+            "</script>",
+            "javascript:",
+            "vbscript:",
+            "data:",
+            "expression(",
+            "onerror",
+            "onload",
+            "onclick",
+            "onmouseover",
+            "onfocus",
+            "onblur",
+            "onmouseenter",
+            "onmouseleave",
+            "onkeydown",
+            "onkeyup",
+            "onchange",
+            "<iframe>",
+            "<img>",
+            "<svg>",
+            "<embed>",
+            "<object>",
+            "<style>",
+            "<link>");
 }

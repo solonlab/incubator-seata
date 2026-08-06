@@ -16,13 +16,6 @@
  */
 package org.apache.seata.config.apollo;
 
-import java.io.IOException;
-import java.io.InputStream;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Properties;
-
 import com.ctrip.framework.apollo.core.dto.ApolloConfig;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -30,6 +23,13 @@ import okhttp3.mockwebserver.Dispatcher;
 import okhttp3.mockwebserver.MockResponse;
 import okhttp3.mockwebserver.MockWebServer;
 import okhttp3.mockwebserver.RecordedRequest;
+
+import java.io.IOException;
+import java.io.InputStream;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Properties;
 
 /**
  * The type Apollo mock server.
@@ -39,7 +39,7 @@ public class ApolloMockServer {
     private MockWebServer server;
     private final ObjectMapper mapper = new ObjectMapper();
 
-    private final String CONFIG_PREFIX_PATH = "/configs";
+    private static final String CONFIG_PREFIX_PATH = "/configs";
 
     /**
      * Instantiates a new Apollo mock server.
@@ -70,12 +70,11 @@ public class ApolloMockServer {
         });
         server.start(port);
         System.setProperty("apollo.configService", "http://localhost:" + port);
-
     }
 
-    private String loadMockData(String appId, String Cluster, String namespace) throws JsonProcessingException {
+    private String loadMockData(String appId, String cluster, String namespace) throws JsonProcessingException {
         String fileName = "mock-" + namespace + ".properties";
-        ApolloConfig apolloConfig = new ApolloConfig(appId, Cluster, namespace, "releaseKey");
+        ApolloConfig apolloConfig = new ApolloConfig(appId, cluster, namespace, "releaseKey");
         Properties properties = new Properties();
         try (InputStream input = this.getClass().getClassLoader().getResourceAsStream(fileName)) {
             if (null != input) {
@@ -90,7 +89,6 @@ public class ApolloMockServer {
         apolloConfig.setConfigurations(configurations);
         String json = mapper.writeValueAsString(apolloConfig);
         return json;
-
     }
 
     /**
@@ -103,5 +101,4 @@ public class ApolloMockServer {
             server.shutdown();
         }
     }
-
 }

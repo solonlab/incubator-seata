@@ -16,6 +16,15 @@
  */
 package org.apache.seata.namingserver.entity.pojo;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
+import org.apache.seata.common.metadata.Cluster;
+import org.apache.seata.common.metadata.Node;
+import org.apache.seata.common.metadata.namingserver.NamingServerNode;
+import org.apache.seata.common.metadata.namingserver.Unit;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.util.CollectionUtils;
+
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -28,22 +37,13 @@ import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.stream.Collectors;
 
-import org.apache.seata.common.metadata.Cluster;
-import org.apache.seata.common.metadata.Node;
-import org.apache.seata.common.metadata.namingserver.NamingServerNode;
-import org.apache.seata.common.metadata.namingserver.Unit;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import org.springframework.util.CollectionUtils;
-
 public class ClusterData {
     private static final Logger LOGGER = LoggerFactory.getLogger(ClusterData.class);
     private String clusterName;
     private String clusterType;
     private final Map<String, Unit> unitData;
-    
-    private final Lock lock = new ReentrantLock();
 
+    private final Lock lock = new ReentrantLock();
 
     public ClusterData() {
         this.unitData = new ConcurrentHashMap<>();
@@ -76,7 +76,6 @@ public class ClusterData {
         this.clusterType = clusterType;
     }
 
-
     public Map<String, Unit> getUnitData() {
         return unitData;
     }
@@ -99,13 +98,13 @@ public class ClusterData {
         }
     }
 
-    public List<Node> getInstanceList() {
+    @JsonIgnore
+    public List<NamingServerNode> getInstanceList() {
         return unitData.values().stream()
                 .map(Unit::getNamingInstanceList)
                 .flatMap(List::stream)
                 .collect(Collectors.toList());
     }
-
 
     public Cluster getClusterByUnits(Set<String> unitNames) {
         Cluster clusterResponse = new Cluster();
@@ -139,8 +138,5 @@ public class ClusterData {
         } finally {
             lock.unlock();
         }
-
     }
-
-
 }

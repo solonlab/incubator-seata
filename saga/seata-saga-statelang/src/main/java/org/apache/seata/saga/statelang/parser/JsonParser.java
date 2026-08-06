@@ -17,10 +17,11 @@
 package org.apache.seata.saga.statelang.parser;
 
 /**
- *
  * Json Parser
  *
+ * @deprecated use {@link org.apache.seata.common.json.JsonSerializer} in json-common-core module instead.
  */
+@Deprecated
 public interface JsonParser {
 
     /**
@@ -38,7 +39,6 @@ public interface JsonParser {
      * @return the json result
      */
     String toJsonString(Object o, boolean prettyPrint);
-
 
     /**
      * Check json use auto type boolean.
@@ -62,6 +62,7 @@ public interface JsonParser {
      *
      * @param json the parse input json
      * @param type the class type
+     * @param ignoreAutoType is ignore auto type
      * @param <T> the object type
      * @return the parse result
      */

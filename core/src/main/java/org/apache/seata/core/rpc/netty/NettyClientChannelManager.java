@@ -16,6 +16,21 @@
  */
 package org.apache.seata.core.rpc.netty;
 
+import io.netty.channel.Channel;
+import org.apache.commons.pool.impl.GenericKeyedObjectPool;
+import org.apache.seata.common.ConfigurationKeys;
+import org.apache.seata.common.exception.FrameworkErrorCode;
+import org.apache.seata.common.exception.FrameworkException;
+import org.apache.seata.common.util.CollectionUtils;
+import org.apache.seata.common.util.NetUtil;
+import org.apache.seata.common.util.StringUtils;
+import org.apache.seata.core.protocol.Version;
+import org.apache.seata.discovery.registry.FileRegistryServiceImpl;
+import org.apache.seata.discovery.registry.RegistryFactory;
+import org.apache.seata.discovery.registry.RegistryService;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import java.net.InetSocketAddress;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -28,21 +43,6 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.function.Function;
 import java.util.stream.Collectors;
-
-import io.netty.channel.Channel;
-import org.apache.seata.common.ConfigurationKeys;
-import org.apache.seata.common.exception.FrameworkErrorCode;
-import org.apache.seata.common.exception.FrameworkException;
-import org.apache.seata.common.util.CollectionUtils;
-import org.apache.seata.common.util.NetUtil;
-import org.apache.seata.common.util.StringUtils;
-import org.apache.seata.core.protocol.Version;
-import org.apache.seata.discovery.registry.FileRegistryServiceImpl;
-import org.apache.seata.discovery.registry.RegistryFactory;
-import org.apache.seata.discovery.registry.RegistryService;
-import org.apache.commons.pool.impl.GenericKeyedObjectPool;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 /**
  * Netty client pool manager.
@@ -58,12 +58,16 @@ class NettyClientChannelManager {
 
     private final ConcurrentMap<String, Channel> channels = new ConcurrentHashMap<>();
 
+    private final ConcurrentMap<String, String> serverVersionMap = new ConcurrentHashMap<>();
+
     private final GenericKeyedObjectPool<NettyPoolKey, Channel> nettyClientKeyPool;
 
     private Function<String, NettyPoolKey> poolKeyFunction;
 
-    NettyClientChannelManager(final NettyPoolableFactory keyPoolableFactory, final Function<String, NettyPoolKey> poolKeyFunction,
-                                     final NettyClientConfig clientConfig) {
+    NettyClientChannelManager(
+            final NettyPoolableFactory keyPoolableFactory,
+            final Function<String, NettyPoolKey> poolKeyFunction,
+            final NettyClientConfig clientConfig) {
         nettyClientKeyPool = new GenericKeyedObjectPool<>(keyPoolableFactory);
         nettyClientKeyPool.setConfig(getNettyPoolConfig(clientConfig));
         this.poolKeyFunction = poolKeyFunction;
@@ -119,9 +123,12 @@ class NettyClientChannelManager {
      * @param serverAddress server address
      */
     void releaseChannel(Channel channel, String serverAddress) {
-        if (channel == null || serverAddress == null) { return; }
+        if (channel == null || serverAddress == null) {
+            return;
+        }
         try {
-            synchronized (channelLocks.get(serverAddress)) {
+            Object lockObj = CollectionUtils.computeIfAbsent(channelLocks, serverAddress, key -> new Object());
+            synchronized (lockObj) {
                 Channel ch = channels.get(serverAddress);
                 if (ch == null) {
                     nettyClientKeyPool.returnObject(poolKeyMap.get(serverAddress), channel);
@@ -148,10 +155,13 @@ class NettyClientChannelManager {
      * @param channel channel
      */
     void destroyChannel(String serverAddress, Channel channel) {
-        if (channel == null) { return; }
+        if (channel == null) {
+            return;
+        }
         try {
             if (channel.equals(channels.get(serverAddress))) {
                 channels.remove(serverAddress);
+                serverVersionMap.remove(serverAddress);
             }
             nettyClientKeyPool.returnObject(poolKeyMap.get(serverAddress), channel);
         } catch (Exception exx) {
@@ -196,7 +206,8 @@ class NettyClientChannelManager {
             String clusterName = registryService.getServiceGroup(transactionServiceGroup);
 
             if (StringUtils.isBlank(clusterName)) {
-                LOGGER.error("can not get cluster name in registry config '{}{}', please make sure registry config correct",
+                LOGGER.error(
+                        "can not get cluster name in registry config '{}{}', please make sure registry config correct",
                         ConfigurationKeys.SERVICE_GROUP_MAPPING_PREFIX,
                         transactionServiceGroup);
                 throwFailFastException(failFast, "can not get cluster name in registry config.");
@@ -204,7 +215,9 @@ class NettyClientChannelManager {
             }
 
             if (!(registryService instanceof FileRegistryServiceImpl)) {
-                LOGGER.error("no available service found in cluster '{}', please make sure registry config correct and keep your seata server running", clusterName);
+                LOGGER.error(
+                        "no available service found in cluster '{}', please make sure registry config correct and keep your seata server running",
+                        clusterName);
             }
             throwFailFastException(failFast, "no available service found in cluster.");
             return;
@@ -239,13 +252,21 @@ class NettyClientChannelManager {
             }
             if (failedMap.size() > 0) {
                 if (LOGGER.isInfoEnabled()) {
-                    LOGGER.error("{} can not connect to {} cause:{}", FrameworkErrorCode.NetConnect.getErrCode(),
+                    LOGGER.error(
+                            "{} can not connect to {} cause:{}",
+                            FrameworkErrorCode.NetConnect.getErrCode(),
                             failedMap.keySet(),
-                            failedMap.values().stream().map(Throwable::getMessage).collect(Collectors.toSet()));
+                            failedMap.values().stream()
+                                    .map(Throwable::getMessage)
+                                    .collect(Collectors.toSet()));
                 } else if (LOGGER.isDebugEnabled()) {
                     failedMap.forEach((key, value) -> {
-                        LOGGER.error("{} can not connect to {} cause:{} trace information:",
-                                FrameworkErrorCode.NetConnect.getErrCode(), key, value.getMessage(), value);
+                        LOGGER.error(
+                                "{} can not connect to {} cause:{} trace information:",
+                                FrameworkErrorCode.NetConnect.getErrCode(),
+                                key,
+                                value.getMessage(),
+                                value);
                     });
                 }
             }
@@ -280,6 +301,42 @@ class NettyClientChannelManager {
         Version.putChannelVersion(channel, version);
     }
 
+    void putServerVersion(String serverAddress, String version) {
+        serverVersionMap.put(serverAddress, version);
+    }
+
+    String getServerVersion(String serverAddress) {
+        return serverVersionMap.get(serverAddress);
+    }
+
+    void clearServerVersions() {
+        serverVersionMap.clear();
+    }
+
+    /**
+     * Clean up metadata for a disconnected channel's address.
+     * Called from the channelInactive event handler after the channel
+     * has been released. Skips cleanup if a new channel already exists
+     * for the same address (reconnection happened before cleanup).
+     *
+     * @param serverAddress the address whose metadata should be cleaned
+     */
+    void cleanupDisconnectedChannelMetadata(String serverAddress) {
+        if (serverAddress == null) {
+            return;
+        }
+        if (channels.containsKey(serverAddress)) {
+            return;
+        }
+        boolean removed = false;
+        removed |= serverVersionMap.remove(serverAddress) != null;
+        removed |= poolKeyMap.remove(serverAddress) != null;
+        removed |= channelLocks.remove(serverAddress) != null;
+        if (removed && LOGGER.isInfoEnabled()) {
+            LOGGER.info("Cleaned up channel metadata for disconnected address: {}", serverAddress);
+        }
+    }
+
     private Channel doConnect(String serverAddress) {
         Channel channelToServer = channels.get(serverAddress);
         if (channelToServer != null && channelToServer.isActive()) {
@@ -299,15 +356,13 @@ class NettyClientChannelManager {
     }
 
     private List<String> getAvailServerList(String transactionServiceGroup) throws Exception {
-        List<InetSocketAddress> availInetSocketAddressList = RegistryFactory.getInstance()
-                .lookup(transactionServiceGroup);
+        List<InetSocketAddress> availInetSocketAddressList =
+                RegistryFactory.getInstance().lookup(transactionServiceGroup);
         if (CollectionUtils.isEmpty(availInetSocketAddressList)) {
             return Collections.emptyList();
         }
 
-        return availInetSocketAddressList.stream()
-                .map(NetUtil::toStringAddress)
-                .collect(Collectors.toList());
+        return availInetSocketAddressList.stream().map(NetUtil::toStringAddress).collect(Collectors.toList());
     }
 
     private Channel getExistAliveChannel(Channel rmChannel, String serverAddress) {
@@ -340,6 +395,4 @@ class NettyClientChannelManager {
             throw new FrameworkException(message);
         }
     }
-
 }
-

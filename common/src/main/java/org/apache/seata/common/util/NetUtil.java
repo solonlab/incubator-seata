@@ -26,14 +26,13 @@ import java.net.InetSocketAddress;
 import java.net.NetworkInterface;
 import java.net.SocketAddress;
 import java.net.UnknownHostException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Enumeration;
 import java.util.LinkedHashSet;
-import java.util.Set;
 import java.util.List;
-import java.util.ArrayList;
-
+import java.util.Set;
 
 /**
  * The type Net util.
@@ -42,24 +41,23 @@ import java.util.ArrayList;
 public class NetUtil {
     private static final Logger LOGGER = LoggerFactory.getLogger(NetUtil.class);
 
-    public static final boolean PREFER_IPV6_ADDRESSES = Boolean.parseBoolean(
-            System.getProperty("java.net.preferIPv6Addresses"));
+    public static final boolean PREFER_IPV6_ADDRESSES =
+            Boolean.parseBoolean(System.getProperty("java.net.preferIPv6Addresses"));
 
     private static final String LOCALHOST = "127.0.0.1";
     private static final String ANY_HOST = "0.0.0.0";
 
     public static final String LOCALHOST_IPV6 = "0:0:0:0:0:0:0:1";
     public static final String LOCALHOST_SHORT_IPV6 = "::1";
-    public static final String ANY_HOST_IPV6  = "0:0:0:0:0:0:0:0";
-    public static final String ANY_HOST_SHORT_IPV6  = "::";
+    public static final String ANY_HOST_IPV6 = "0:0:0:0:0:0:0:0";
+    public static final String ANY_HOST_SHORT_IPV6 = "::";
 
     private static volatile InetAddress LOCAL_ADDRESS = null;
 
-    private static final Set<String> FORBIDDEN_HOSTS = Collections.unmodifiableSet(
-            new LinkedHashSet<>(Arrays.asList(
-                            LOCALHOST, ANY_HOST,
-                            LOCALHOST_IPV6, LOCALHOST_SHORT_IPV6,
-                            ANY_HOST_IPV6,ANY_HOST_SHORT_IPV6)));
+    private static final Set<String> FORBIDDEN_HOSTS = Collections.unmodifiableSet(new LinkedHashSet<>(Arrays.asList(
+            LOCALHOST, ANY_HOST,
+            LOCALHOST_IPV6, LOCALHOST_SHORT_IPV6,
+            ANY_HOST_IPV6, ANY_HOST_SHORT_IPV6)));
 
     /**
      * To string address string.
@@ -138,18 +136,33 @@ public class NetUtil {
         if (address.charAt(0) == '[') {
             address = removeBrackets(address);
         }
-        String[] serverAddArr = null;
         int i = address.lastIndexOf(Constants.IP_PORT_SPLIT_CHAR);
         if (i > -1) {
-            serverAddArr = new String[2];
-            String hostAddress = address.substring(0,i);
+            String hostAddress = address.substring(0, i);
             if (hostAddress.contains("%")) {
                 hostAddress = hostAddress.substring(0, hostAddress.indexOf("%"));
             }
-            serverAddArr[0] = hostAddress;
-            serverAddArr[1] = address.substring(i + 1);
+            String portStr = address.substring(i + 1);
+            if (StringUtils.isBlank(hostAddress) || StringUtils.isBlank(portStr)) {
+                throw new IllegalArgumentException(
+                        "Invalid endpoint format: " + address + ". Endpoint should be in the format ip:port.");
+            }
+            try {
+                int port = Integer.parseInt(portStr);
+                if (port < 1 || port > 65535) {
+                    throw new IllegalArgumentException(
+                            "Invalid endpoint format: " + address + ". Port must be between 1 and 65535.");
+                }
+            } catch (NumberFormatException e) {
+                throw new IllegalArgumentException(
+                        "Invalid endpoint format: " + address + ". Port must be a numeric value.", e);
+            }
+
+            return new String[] {hostAddress, portStr};
+        } else {
+            throw new IllegalArgumentException(
+                    "Invalid endpoint format: " + address + ". Endpoint should be in the format ip:port.");
         }
-        return serverAddArr;
     }
 
     /**
@@ -176,7 +189,22 @@ public class NetUtil {
      * @return the local ip
      */
     public static String getLocalIp(String... preferredNetworks) {
-        InetAddress address = getLocalAddress(preferredNetworks);
+        return getIgnoredInterfacesLocalIp(null, preferredNetworks);
+    }
+
+    /**
+     * Gets local ip with network interface filtering support.
+     * This method allows filtering out unwanted network interfaces (e.g., virtual interfaces)
+     * and selecting preferred networks based on patterns.
+     *
+     * @param ignoredInterfaces the network interface name patterns to ignore (regex supported),
+     *                          e.g., "VMware.*", "VirtualBox.*", "docker.*", "veth.*"
+     * @param preferredNetworks the preferred network address patterns (regex or prefix match),
+     *                          e.g., "192.168.*", "10.0.*"
+     * @return the local ip address, or localhost if not found
+     */
+    public static String getIgnoredInterfacesLocalIp(String[] ignoredInterfaces, String... preferredNetworks) {
+        InetAddress address = getIgnoredInterfacesLocalAddress(ignoredInterfaces, preferredNetworks);
         if (null != address) {
             String hostAddress = address.getHostAddress();
             if (address instanceof Inet6Address) {
@@ -214,15 +242,38 @@ public class NetUtil {
      * @return the local address
      */
     public static InetAddress getLocalAddress(String... preferredNetworks) {
+        return getIgnoredInterfacesLocalAddress(null, preferredNetworks);
+    }
+
+    /**
+     * Gets local address with network interface filtering support.
+     * This method allows filtering out unwanted network interfaces (e.g., virtual interfaces)
+     * and selecting preferred networks based on patterns.
+     * <p>
+     * Note: Does not support IPv6.
+     * <p>
+     * Selection priority:
+     * 1. Filter out interfaces matching ignoredInterfaces patterns
+     * 2. If preferredNetworks is specified, return the first matching address
+     * 3. If no match found, return the first valid IP address
+     *
+     * @param ignoredInterfaces the network interface name patterns to ignore (regex supported),
+     *                          e.g., "VMware.*", "VirtualBox.*", "docker.*", "veth.*"
+     * @param preferredNetworks the preferred network address patterns (regex or prefix match),
+     *                          e.g., "192.168.*", "10.0.*"
+     * @return the local address, or null if not found
+     */
+    public static InetAddress getIgnoredInterfacesLocalAddress(
+            String[] ignoredInterfaces, String... preferredNetworks) {
         if (LOCAL_ADDRESS != null) {
             return LOCAL_ADDRESS;
         }
-        InetAddress localAddress = getLocalAddress0(preferredNetworks);
+        InetAddress localAddress = getLocalAddress0(ignoredInterfaces, preferredNetworks);
         LOCAL_ADDRESS = localAddress;
         return localAddress;
     }
 
-    private static InetAddress getLocalAddress0(String... preferredNetworks) {
+    private static InetAddress getLocalAddress0(String[] ignoredInterfaces, String... preferredNetworks) {
         InetAddress localAddress = null;
         try {
             Enumeration<NetworkInterface> interfaces = NetworkInterface.getNetworkInterfaces();
@@ -231,6 +282,9 @@ public class NetUtil {
                     try {
                         NetworkInterface network = interfaces.nextElement();
                         if (network.isUp()) {
+                            if (ignoreInterface(ignoredInterfaces, network.getDisplayName())) {
+                                continue;
+                            }
                             Enumeration<InetAddress> addresses = network.getInetAddresses();
                             while (addresses.hasMoreElements()) {
                                 try {
@@ -239,7 +293,7 @@ public class NetUtil {
                                         if (null == localAddress) {
                                             localAddress = address;
                                         }
-                                        //check preferredNetworks
+                                        // check preferredNetworks
                                         if (preferredNetworks.length > 0) {
                                             String ip = address.getHostAddress();
                                             for (String regex : preferredNetworks) {
@@ -270,9 +324,33 @@ public class NetUtil {
         if (localAddress == null) {
             LOGGER.error("Could not get local host ip address, will use 127.0.0.1 instead.");
         } else {
-            LOGGER.error("Could not match ip by preferredNetworks:{}, will use default first ip {} instead.", Arrays.toString(preferredNetworks), localAddress.getHostAddress());
+            LOGGER.error(
+                    "Could not match ip by preferredNetworks:{}, will use default first ip {} instead.",
+                    Arrays.toString(preferredNetworks),
+                    localAddress.getHostAddress());
         }
         return localAddress;
+    }
+
+    /**
+     * Check if the network interface should be ignored based on the provided patterns.
+     * Supports regex matching for flexible interface name filtering.
+     *
+     * @param ignoredInterfaces array of regex patterns to match against interface names, null means no filtering
+     * @param interfaceName the display name of the network interface to check
+     * @return true if the interface matches any ignore pattern and should be skipped, false otherwise
+     */
+    public static boolean ignoreInterface(String[] ignoredInterfaces, String interfaceName) {
+        if (ignoredInterfaces == null) {
+            return false;
+        }
+        for (String regex : ignoredInterfaces) {
+            if (interfaceName.matches(regex)) {
+                LOGGER.trace("Ignoring interface: {}", interfaceName);
+                return true;
+            }
+        }
+        return false;
     }
 
     /**
@@ -302,9 +380,9 @@ public class NetUtil {
                 return false;
             }
             if (address.isAnyLocalAddress() // filter ::/128
-                    || address.isLinkLocalAddress() //filter fe80::/10
-                    || address.isSiteLocalAddress()// filter fec0::/10
-                    || isUniqueLocalAddress(address)) //filter fd00::/8
+                    || address.isLinkLocalAddress() // filter fe80::/10
+                    || address.isSiteLocalAddress() // filter fec0::/10
+                    || isUniqueLocalAddress(address)) // filter fd00::/8
             {
                 return false;
             }

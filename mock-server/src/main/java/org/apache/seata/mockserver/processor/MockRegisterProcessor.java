@@ -17,6 +17,8 @@
 package org.apache.seata.mockserver.processor;
 
 import io.netty.channel.ChannelHandlerContext;
+import org.apache.seata.common.util.StringUtils;
+import org.apache.seata.core.protocol.AbstractResultMessage;
 import org.apache.seata.core.protocol.RegisterRMRequest;
 import org.apache.seata.core.protocol.RegisterRMResponse;
 import org.apache.seata.core.protocol.RegisterTMRequest;
@@ -36,42 +38,42 @@ public class MockRegisterProcessor implements RemotingProcessor {
 
     protected static final Logger LOGGER = LoggerFactory.getLogger(MockRegisterProcessor.class);
 
-
     private final RemotingServer remotingServer;
     private final Role role;
-
 
     public MockRegisterProcessor(RemotingServer remotingServer, Role role) {
         this.remotingServer = remotingServer;
         this.role = role;
     }
 
-
     @Override
     public void process(ChannelHandlerContext ctx, RpcMessage rpcMessage) throws Exception {
-        if (role == Role.TM) {
-            RegisterTMRequest message = (RegisterTMRequest) rpcMessage.getBody();
-            LOGGER.info("message = " + message);
-
-            ChannelManager.registerTMChannel(message, ctx.channel());
-            Version.putChannelVersion(ctx.channel(), message.getVersion());
-
-            RegisterTMResponse resp = new RegisterTMResponse();
-            remotingServer.sendAsyncResponse(rpcMessage, ctx.channel(), resp);
-            LOGGER.info("sendAsyncResponse: {}", resp);
-        } else if (role == Role.RM) {
-            RegisterRMRequest message = (RegisterRMRequest) rpcMessage.getBody();
-            LOGGER.info("message = " + message);
-
-            ChannelManager.registerRMChannel(message, ctx.channel());
-            Version.putChannelVersion(ctx.channel(), message.getVersion());
-
-            RegisterRMResponse resp = new RegisterRMResponse();
-            remotingServer.sendAsyncResponse(rpcMessage, ctx.channel(), resp);
-            LOGGER.info("sendAsyncResponse: {}", resp);
+        String errorInfo = StringUtils.EMPTY;
+        AbstractResultMessage response = null;
+        try {
+            if (role == Role.TM) {
+                RegisterTMRequest message = (RegisterTMRequest) rpcMessage.getBody();
+                LOGGER.info("reg message = " + message);
+                ChannelManager.registerTMChannel(message, ctx.channel());
+                Version.putChannelVersion(ctx.channel(), message.getVersion());
+                response = new RegisterTMResponse();
+            } else if (role == Role.RM) {
+                RegisterRMRequest message = (RegisterRMRequest) rpcMessage.getBody();
+                LOGGER.info("reg message = " + message);
+                ChannelManager.registerRMChannel(message, ctx.channel());
+                Version.putChannelVersion(ctx.channel(), message.getVersion());
+                response = new RegisterRMResponse();
+            }
+        } catch (Exception e) {
+            errorInfo = e.getMessage();
+            LOGGER.error(role + " register fail, error message:{}", errorInfo);
         }
+        if (StringUtils.isNotEmpty(errorInfo)) {
+            response.setMsg(errorInfo);
+        }
+        remotingServer.sendAsyncResponse(rpcMessage, ctx.channel(), response);
+        LOGGER.info("sendAsyncResponse: {}", response);
     }
-
 
     public enum Role {
         /**

@@ -27,7 +27,6 @@ import org.junit.jupiter.api.Test;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-
 public class Fastjson2SerializerTest {
 
     private static Fastjson2Serializer fastjson2Serializer;
@@ -35,8 +34,8 @@ public class Fastjson2SerializerTest {
     @BeforeAll
     public static void before() {
         fastjson2Serializer = new Fastjson2Serializer();
+        fastjson2Serializer.init();
     }
-
 
     @Test
     public void testBranchCommitRequest() {
@@ -57,7 +56,6 @@ public class Fastjson2SerializerTest {
         assertThat(t.getResourceId()).isEqualTo(branchCommitRequest.getResourceId());
         assertThat(t.getBranchId()).isEqualTo(branchCommitRequest.getBranchId());
         assertThat(t.getApplicationData()).isEqualTo(branchCommitRequest.getApplicationData());
-
     }
 
     @Test
@@ -79,7 +77,5 @@ public class Fastjson2SerializerTest {
         assertThat(t.getBranchStatus()).isEqualTo(branchCommitResponse.getBranchStatus());
         assertThat(t.getMsg()).isEqualTo(branchCommitResponse.getMsg());
         assertThat(t.getResultCode()).isEqualTo(branchCommitResponse.getResultCode());
-
     }
-
 }

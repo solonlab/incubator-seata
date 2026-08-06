@@ -16,13 +16,15 @@
  */
 package org.apache.seata.common.util;
 
+import org.junit.jupiter.api.Assertions;
+import org.junit.jupiter.api.Test;
+
 import java.net.Inet4Address;
 import java.net.Inet6Address;
 import java.net.InetSocketAddress;
 import java.net.SocketAddress;
 import java.net.UnknownHostException;
-
-import org.junit.jupiter.api.Test;
+import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -33,16 +35,17 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
  */
 public class NetUtilTest {
 
-    private InetSocketAddress ipv4 = new InetSocketAddress(Inet4Address.getLocalHost().getHostName(), 3902);
-    private InetSocketAddress ipv6 = new InetSocketAddress(Inet6Address.getLocalHost().getHostName(), 3904);
+    private InetSocketAddress ipv4 =
+            new InetSocketAddress(Inet4Address.getLocalHost().getHostName(), 3902);
+    private InetSocketAddress ipv6 =
+            new InetSocketAddress(Inet6Address.getLocalHost().getHostName(), 3904);
 
     /**
      * Instantiates a new Net util test.
      *
      * @throws UnknownHostException the unknown host exception
      */
-    public NetUtilTest() throws UnknownHostException {
-    }
+    public NetUtilTest() throws UnknownHostException {}
 
     /**
      * Test to string address.
@@ -61,10 +64,10 @@ public class NetUtilTest {
      */
     @Test
     public void testToStringAddress1() {
-        assertThat(NetUtil.toStringAddress((SocketAddress)ipv4))
-            .isEqualTo(ipv4.getAddress().getHostAddress() + ":" + ipv4.getPort());
-        assertThat(NetUtil.toStringAddress((SocketAddress)ipv6)).isEqualTo(
-            ipv6.getAddress().getHostAddress() + ":" + ipv6.getPort());
+        assertThat(NetUtil.toStringAddress((SocketAddress) ipv4))
+                .isEqualTo(ipv4.getAddress().getHostAddress() + ":" + ipv4.getPort());
+        assertThat(NetUtil.toStringAddress((SocketAddress) ipv6))
+                .isEqualTo(ipv6.getAddress().getHostAddress() + ":" + ipv6.getPort());
     }
 
     /**
@@ -72,10 +75,17 @@ public class NetUtilTest {
      */
     @Test
     public void testToStringAddress2() {
-        assertThat(NetUtil.toStringAddress(ipv4)).isEqualTo(
-            ipv4.getAddress().getHostAddress() + ":" + ipv4.getPort());
-        assertThat(NetUtil.toStringAddress(ipv6)).isEqualTo(
-            ipv6.getAddress().getHostAddress() + ":" + ipv6.getPort());
+        assertThat(NetUtil.toStringAddress(ipv4)).isEqualTo(ipv4.getAddress().getHostAddress() + ":" + ipv4.getPort());
+        assertThat(NetUtil.toStringAddress(ipv6)).isEqualTo(ipv6.getAddress().getHostAddress() + ":" + ipv6.getPort());
+    }
+
+    /**
+     * Test to string host.
+     */
+    @Test
+    public void testToStringHost() {
+        assertThat(NetUtil.toStringHost(ipv4)).isEqualTo(ipv4.getAddress().getHostAddress());
+        assertThat(NetUtil.toStringHost(ipv6)).isEqualTo(ipv6.getAddress().getHostAddress());
     }
 
     /**
@@ -97,7 +107,7 @@ public class NetUtilTest {
         try {
             NetUtil.toInetSocketAddress("23939:ks");
         } catch (Exception e) {
-            assertThat(e).isInstanceOf(NumberFormatException.class);
+            assertThat(e).isInstanceOf(IllegalArgumentException.class);
         }
     }
 
@@ -106,7 +116,42 @@ public class NetUtilTest {
      */
     @Test
     public void testToInetSocketAddress1() {
-        assertThat(NetUtil.toInetSocketAddress("kadfskl").getHostName()).isEqualTo("kadfskl");
+        Assertions.assertThrows(IllegalArgumentException.class, () -> {
+            NetUtil.toInetSocketAddress("kadfskl").getHostName().equals("kadfskl");
+        });
+    }
+
+    @Test
+    public void testToInetSocketAddressWhenHostOrPortIsEmpty() {
+        Assertions.assertThrows(IllegalArgumentException.class, () -> {
+            NetUtil.toInetSocketAddress(":");
+        });
+
+        Assertions.assertThrows(IllegalArgumentException.class, () -> {
+            NetUtil.toInetSocketAddress(":9001");
+        });
+
+        Assertions.assertThrows(IllegalArgumentException.class, () -> {
+            NetUtil.toInetSocketAddress("127.0.0.1:");
+        });
+    }
+
+    @Test
+    public void testToInetSocketAddressWhenPortIllegalRange() {
+        Assertions.assertThrows(IllegalArgumentException.class, () -> {
+            NetUtil.toInetSocketAddress("127.0.0.1:-1");
+        });
+
+        Assertions.assertThrows(IllegalArgumentException.class, () -> {
+            NetUtil.toInetSocketAddress("127.0.0.1:65539");
+        });
+    }
+
+    @Test
+    public void testToInetSocketAddressWhenPortNotNumber() {
+        Assertions.assertThrows(IllegalArgumentException.class, () -> {
+            NetUtil.toInetSocketAddress("127.0.0.1:hello");
+        });
     }
 
     /**
@@ -117,7 +162,7 @@ public class NetUtilTest {
         try {
             NetUtil.toLong("kdskdsfk");
         } catch (Exception e) {
-            assertThat(e).isInstanceOf(NullPointerException.class);
+            assertThat(e).isInstanceOf(IllegalArgumentException.class);
         }
     }
 
@@ -126,14 +171,14 @@ public class NetUtilTest {
      */
     @Test
     public void testToLong1() {
-        String[] split = "127.0.0.1".split("\\.");
+        String[] split = "127.0.0.1:8080".split("[.:]");
         long r = 0;
         r = r | (Long.parseLong(split[0]) << 40);
         r = r | (Long.parseLong(split[1]) << 32);
         r = r | (Long.parseLong(split[2]) << 24);
         r = r | (Long.parseLong(split[3]) << 16);
-        assertThat(NetUtil.toLong("127.0.0.1")).isEqualTo(r);
-
+        r = r | Long.parseLong(split[4]);
+        assertThat(NetUtil.toLong("127.0.0.1:8080")).isEqualTo(r);
     }
 
     /**
@@ -176,25 +221,198 @@ public class NetUtilTest {
         assertThat(NetUtil.isValidIp(someHostName, false)).isTrue();
 
         assertThatThrownBy(() -> {
-            NetUtil.isValidIp(unknownHost, false);
-        }).isInstanceOf(RuntimeException.class).hasMessageContaining("UnknownHostException");
-
+                    NetUtil.isValidIp(unknownHost, false);
+                })
+                .isInstanceOf(RuntimeException.class)
+                .hasMessageContaining("UnknownHostException");
     }
 
     @Test
     public void testSplitIPPortStr() {
-        String[] ipPort = new String[]{"127.0.0.1","8080"};
+        String[] ipPort = new String[] {"127.0.0.1", "8080"};
         assertThat(NetUtil.splitIPPortStr("127.0.0.1:8080")).isEqualTo(ipPort);
-        ipPort = new String[]{"::","8080"};
+        ipPort = new String[] {"::", "8080"};
         assertThat(NetUtil.splitIPPortStr("[::]:8080")).isEqualTo(ipPort);
-        ipPort = new String[]{"2000:0000:0000:0000:0001:2345:6789:abcd","8080"};
-        assertThat(NetUtil.splitIPPortStr("2000:0000:0000:0000:0001:2345:6789:abcd%10:8080")).isEqualTo(ipPort);
-        ipPort = new String[]{"2000:0000:0000:0000:0001:2345:6789:abcd","8080"};
-        assertThat(NetUtil.splitIPPortStr("[2000:0000:0000:0000:0001:2345:6789:abcd]:8080")).isEqualTo(ipPort);
-        ipPort = new String[]{"::FFFF:192.168.1.2","8080"};
+        ipPort = new String[] {"2000:0000:0000:0000:0001:2345:6789:abcd", "8080"};
+        assertThat(NetUtil.splitIPPortStr("2000:0000:0000:0000:0001:2345:6789:abcd%10:8080"))
+                .isEqualTo(ipPort);
+        ipPort = new String[] {"2000:0000:0000:0000:0001:2345:6789:abcd", "8080"};
+        assertThat(NetUtil.splitIPPortStr("[2000:0000:0000:0000:0001:2345:6789:abcd]:8080"))
+                .isEqualTo(ipPort);
+        ipPort = new String[] {"::FFFF:192.168.1.2", "8080"};
         assertThat(NetUtil.splitIPPortStr("::FFFF:192.168.1.2:8080")).isEqualTo(ipPort);
-        ipPort = new String[]{"::FFFF:192.168.1.2","8080"};
+        ipPort = new String[] {"::FFFF:192.168.1.2", "8080"};
         assertThat(NetUtil.splitIPPortStr("[::FFFF:192.168.1.2]:8080")).isEqualTo(ipPort);
     }
 
+    @Test
+    public void testValidAddress() {
+        // Test valid address
+        InetSocketAddress validAddress = new InetSocketAddress("127.0.0.1", 8080);
+        Assertions.assertDoesNotThrow(() -> NetUtil.validAddress(validAddress));
+
+        // Test invalid address with port 0
+        InetSocketAddress invalidAddress2 = new InetSocketAddress("127.0.0.1", 0);
+        Assertions.assertThrows(IllegalArgumentException.class, () -> NetUtil.validAddress(invalidAddress2));
+    }
+
+    @Test
+    public void testGetHostByName() {
+        // Test with valid IP
+        List<String> result1 = NetUtil.getHostByName("127.0.0.1");
+        assertThat(result1).isNotNull().contains("127.0.0.1");
+
+        // Test with null
+        List<String> result2 = NetUtil.getHostByName(null);
+        assertThat(result2).isNull();
+
+        // Test with valid domain
+        List<String> result3 = NetUtil.getHostByName("localhost");
+        assertThat(result3).isNotNull().isNotEmpty();
+    }
+
+    @Test
+    public void testLocalIP() {
+        String localIP = NetUtil.localIP();
+        assertThat(localIP).isIn("127.0.0.1", "0:0:0:0:0:0:0:1");
+    }
+
+    /**
+     * Test ignore interface with null ignored interfaces.
+     */
+    @Test
+    public void testIgnoreInterface_withNullIgnoredInterfaces() {
+        // When ignoredInterfaces is null, should not ignore any interface
+        assertThat(NetUtil.ignoreInterface(null, "eth0")).isFalse();
+        assertThat(NetUtil.ignoreInterface(null, "VMware Virtual Ethernet Adapter"))
+                .isFalse();
+        assertThat(NetUtil.ignoreInterface(null, "docker0")).isFalse();
+    }
+
+    /**
+     * Test ignore interface with empty ignored interfaces.
+     */
+    @Test
+    public void testIgnoreInterface_withEmptyIgnoredInterfaces() {
+        // When ignoredInterfaces is empty array, should not ignore any interface
+        String[] emptyIgnored = new String[0];
+        assertThat(NetUtil.ignoreInterface(emptyIgnored, "eth0")).isFalse();
+        assertThat(NetUtil.ignoreInterface(emptyIgnored, "VMware Virtual Ethernet Adapter"))
+                .isFalse();
+    }
+
+    /**
+     * Test ignore interface with exact match.
+     */
+    @Test
+    public void testIgnoreInterface_withExactMatch() {
+        String[] ignoredInterfaces = new String[] {"docker0", "veth.*", "VMware.*"};
+
+        // Exact match
+        assertThat(NetUtil.ignoreInterface(ignoredInterfaces, "docker0")).isTrue();
+
+        // Should not match
+        assertThat(NetUtil.ignoreInterface(ignoredInterfaces, "eth0")).isFalse();
+        assertThat(NetUtil.ignoreInterface(ignoredInterfaces, "en0")).isFalse();
+    }
+
+    /**
+     * Test ignore interface with regex pattern.
+     */
+    @Test
+    public void testIgnoreInterface_withRegexPattern() {
+        String[] ignoredInterfaces = new String[] {"VMware.*", "VirtualBox.*", "docker.*", "veth.*", "br-.*"};
+
+        // VMware interfaces
+        assertThat(NetUtil.ignoreInterface(ignoredInterfaces, "VMware Virtual Ethernet Adapter"))
+                .isTrue();
+        assertThat(NetUtil.ignoreInterface(ignoredInterfaces, "VMware Network Adapter"))
+                .isTrue();
+
+        // VirtualBox interfaces
+        assertThat(NetUtil.ignoreInterface(ignoredInterfaces, "VirtualBox Host-Only Network"))
+                .isTrue();
+
+        // Docker interfaces
+        assertThat(NetUtil.ignoreInterface(ignoredInterfaces, "docker0")).isTrue();
+        assertThat(NetUtil.ignoreInterface(ignoredInterfaces, "docker1")).isTrue();
+
+        // veth interfaces (Docker container interfaces)
+        assertThat(NetUtil.ignoreInterface(ignoredInterfaces, "veth1234567")).isTrue();
+        assertThat(NetUtil.ignoreInterface(ignoredInterfaces, "vethab12cd")).isTrue();
+
+        // bridge interfaces
+        assertThat(NetUtil.ignoreInterface(ignoredInterfaces, "br-1234567890ab"))
+                .isTrue();
+
+        // Should not match normal interfaces
+        assertThat(NetUtil.ignoreInterface(ignoredInterfaces, "eth0")).isFalse();
+        assertThat(NetUtil.ignoreInterface(ignoredInterfaces, "en0")).isFalse();
+        assertThat(NetUtil.ignoreInterface(ignoredInterfaces, "wlan0")).isFalse();
+    }
+
+    /**
+     * Test get ignored interfaces local ip with null ignored interfaces.
+     */
+    @Test
+    public void testGetIgnoredInterfacesLocalIp_withNullIgnoredInterfaces() {
+        // Should work the same as getLocalIp when ignoredInterfaces is null
+        String ip = NetUtil.getIgnoredInterfacesLocalIp(null);
+        assertThat(ip).isNotNull();
+        assertThat(ip).isNotEmpty();
+    }
+
+    /**
+     * Test get ignored interfaces local ip with ignored interfaces.
+     */
+    @Test
+    public void testGetIgnoredInterfacesLocalIp_withIgnoredInterfaces() {
+        // Test with common virtual interface patterns
+        String[] ignoredInterfaces = new String[] {"VMware.*", "VirtualBox.*", "docker.*", "veth.*"};
+        String ip = NetUtil.getIgnoredInterfacesLocalIp(ignoredInterfaces);
+        assertThat(ip).isNotNull();
+        assertThat(ip).isNotEmpty();
+    }
+
+    /**
+     * Test get ignored interfaces local ip with preferred networks.
+     */
+    @Test
+    public void testGetIgnoredInterfacesLocalIp_withPreferredNetworks() {
+        String[] ignoredInterfaces = new String[] {"VMware.*", "VirtualBox.*"};
+        String[] preferredNetworks = new String[] {"192.168.*", "10.*"};
+        String ip = NetUtil.getIgnoredInterfacesLocalIp(ignoredInterfaces, preferredNetworks);
+        assertThat(ip).isNotNull();
+        assertThat(ip).isNotEmpty();
+    }
+
+    /**
+     * Test get ignored interfaces local address with null ignored interfaces.
+     */
+    @Test
+    public void testGetIgnoredInterfacesLocalAddress_withNullIgnoredInterfaces() {
+        // Should work the same as getLocalAddress when ignoredInterfaces is null
+        assertThat(NetUtil.getIgnoredInterfacesLocalAddress(null)).isNotNull();
+    }
+
+    /**
+     * Test get ignored interfaces local address with ignored interfaces.
+     */
+    @Test
+    public void testGetIgnoredInterfacesLocalAddress_withIgnoredInterfaces() {
+        // Test with common virtual interface patterns
+        String[] ignoredInterfaces = new String[] {"VMware.*", "VirtualBox.*", "docker.*", "veth.*", "br-.*"};
+        assertThat(NetUtil.getIgnoredInterfacesLocalAddress(ignoredInterfaces)).isNotNull();
+    }
+
+    /**
+     * Test get ignored interfaces local address with preferred networks.
+     */
+    @Test
+    public void testGetIgnoredInterfacesLocalAddress_withPreferredNetworks() {
+        String[] ignoredInterfaces = new String[] {"VMware.*", "VirtualBox.*"};
+        String[] preferredNetworks = new String[] {"192.168.*", "10.*"};
+        assertThat(NetUtil.getIgnoredInterfacesLocalAddress(ignoredInterfaces, preferredNetworks))
+                .isNotNull();
+    }
 }

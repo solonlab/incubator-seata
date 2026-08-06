@@ -198,7 +198,7 @@ public interface Constants {
      * The constant REGISTRY_TYPE_SPLIT_CHAR.
      */
     String REGISTRY_TYPE_SPLIT_CHAR = ",";
-    
+
     /**
      * phase two compensation method name
      */
@@ -218,6 +218,16 @@ public interface Constants {
      * The constant JACKSON_JSON_PARSER_NAME
      */
     String JACKSON_JSON_PARSER_NAME = "jackson";
+
+    /**
+     * The constant FASTJSON2_JSON_PARSER_NAME
+     */
+    String FASTJSON2_JSON_PARSER_NAME = "fastjson2";
+
+    /**
+     * The constant JACKSON3_JSON_PARSER_NAME
+     */
+    String JACKSON3_JSON_PARSER_NAME = "jackson3";
 
     /**
      * The constant GSON_JSON_PARSER_NAME
@@ -244,4 +254,10 @@ public interface Constants {
      */
     String RAFT_GROUP_HEADER = "X-SEATA-RAFT-GROUP";
 
+    /**
+     * The constant WATCH_EVENT_PREFIX
+     * Prefix for watch event data format: "{prefix}{json}\n"
+     * CW stands for Cluster Watch
+     */
+    String WATCH_EVENT_PREFIX = "CW:";
 }

@@ -37,9 +37,13 @@ import javax.script.ScriptEngine;
 import javax.script.ScriptEngineManager;
 import javax.script.SimpleBindings;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.regex.Pattern;
 
 /**
  * ScriptTaskState Handler
@@ -48,6 +52,16 @@ import java.util.concurrent.ConcurrentHashMap;
 public class ScriptTaskStateHandler implements StateHandler, InterceptableStateHandler {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(ScriptTaskStateHandler.class);
+
+    private static final Set<String> ALLOWED_SCRIPT_TYPES = new HashSet<>(Arrays.asList("groovy", "js", "javascript"));
+
+    private static final Pattern DANGEROUS_PATTERN = Pattern.compile("(?i)"
+            + "ProcessBuilder|\\.execute\\s*\\("
+            + "|System\\s*\\.\\s*(exit|getRuntime|setSecurityManager)"
+            + "|Class\\s*\\.\\s*forName|ClassLoader"
+            + "|java\\.lang\\.reflect"
+            + "|java\\.io\\.File|java\\.net\\."
+            + "|GroovyShell|GroovyClassLoader");
 
     private List<StateHandlerInterceptor> interceptors = new ArrayList<>();
 
@@ -67,17 +81,21 @@ public class ScriptTaskStateHandler implements StateHandler, InterceptableStateH
             List<Object> input = (List<Object>) context.getVariable(DomainConstants.VAR_NAME_INPUT_PARAMS);
 
             if (LOGGER.isDebugEnabled()) {
-                LOGGER.debug(">>>>>>>>>>>>>>>>>>>>>> Start to execute ScriptTaskState[{}], ScriptType[{}], Input:{}",
-                        state.getName(), scriptType, input);
+                LOGGER.debug(
+                        ">>>>>>>>>>>>>>>>>>>>>> Start to execute ScriptTaskState[{}], ScriptType[{}], Input:{}",
+                        state.getName(),
+                        scriptType,
+                        input);
             }
 
-            StateMachineConfig stateMachineConfig = (StateMachineConfig) context.getVariable(
-                    DomainConstants.VAR_NAME_STATEMACHINE_CONFIG);
+            StateMachineConfig stateMachineConfig =
+                    (StateMachineConfig) context.getVariable(DomainConstants.VAR_NAME_STATEMACHINE_CONFIG);
 
-            ScriptEngine scriptEngine = getScriptEngineFromCache(scriptType, stateMachineConfig.getScriptEngineManager());
+            ScriptEngine scriptEngine =
+                    getScriptEngineFromCache(scriptType, stateMachineConfig.getScriptEngineManager());
             if (scriptEngine == null) {
-                throw new EngineExecutionException("No such ScriptType[" + scriptType + "]",
-                        FrameworkErrorCode.ObjectNotExists);
+                throw new EngineExecutionException(
+                        "No such ScriptType[" + scriptType + "]", FrameworkErrorCode.ObjectNotExists);
             }
 
             Bindings bindings = null;
@@ -94,44 +112,65 @@ public class ScriptTaskStateHandler implements StateHandler, InterceptableStateH
                         if (inputMap != null && inputMap.containsKey(property)) {
                             bindings.put(property, inputMap.get(property));
                         } else {
-                            //if we do not bind the null value property, groovy will throw MissingPropertyException
+                            // if we do not bind the null value property, groovy will throw MissingPropertyException
                             bindings.put(property, null);
                         }
                     }
                 }
             }
+            validateScriptSecurity(scriptType, scriptContent);
+
             if (bindings != null) {
                 result = scriptEngine.eval(scriptContent, bindings);
-            }
-            else {
+            } else {
                 result = scriptEngine.eval(scriptContent);
             }
 
             if (LOGGER.isDebugEnabled()) {
-                LOGGER.debug("<<<<<<<<<<<<<<<<<<<<<< ScriptTaskState[{}], ScriptType[{}], Execute finish. result: {}",
-                        state.getName(), scriptType, result);
+                LOGGER.debug(
+                        "<<<<<<<<<<<<<<<<<<<<<< ScriptTaskState[{}], ScriptType[{}], Execute finish. result: {}",
+                        state.getName(),
+                        scriptType,
+                        result);
             }
 
             if (result != null) {
-                ((HierarchicalProcessContext) context).setVariableLocally(DomainConstants.VAR_NAME_OUTPUT_PARAMS,
-                        result);
+                ((HierarchicalProcessContext) context)
+                        .setVariableLocally(DomainConstants.VAR_NAME_OUTPUT_PARAMS, result);
             }
 
         } catch (Throwable e) {
 
-            LOGGER.error("<<<<<<<<<<<<<<<<<<<<<< ScriptTaskState[{}], ScriptTaskState[{}] Execute failed.",
-                    state.getName(), scriptType, e);
+            LOGGER.error(
+                    "<<<<<<<<<<<<<<<<<<<<<< ScriptTaskState[{}], ScriptTaskState[{}] Execute failed.",
+                    state.getName(),
+                    scriptType,
+                    e);
 
-            ((HierarchicalProcessContext) context).setVariableLocally(DomainConstants.VAR_NAME_CURRENT_EXCEPTION, e);
+            Exception exceptionToStore = (e instanceof Exception)
+                    ? (Exception) e
+                    : new RuntimeException("Script execution failed: " + e.getMessage(), e);
+            ((HierarchicalProcessContext) context)
+                    .setVariableLocally(DomainConstants.VAR_NAME_CURRENT_EXCEPTION, exceptionToStore);
 
-            EngineUtils.handleException(context, state, e);
+            EngineUtils.handleException(context, state, exceptionToStore);
         }
+    }
 
+    static void validateScriptSecurity(String scriptType, String scriptContent) {
+        if (scriptType != null && !ALLOWED_SCRIPT_TYPES.contains(scriptType.toLowerCase())) {
+            throw new EngineExecutionException(
+                    "Disallowed script type: " + scriptType, FrameworkErrorCode.ParameterRequired);
+        }
+        if (scriptContent != null && DANGEROUS_PATTERN.matcher(scriptContent).find()) {
+            throw new EngineExecutionException(
+                    "Script content contains disallowed dangerous code pattern", FrameworkErrorCode.ParameterRequired);
+        }
     }
 
     protected ScriptEngine getScriptEngineFromCache(String scriptType, ScriptEngineManager scriptEngineManager) {
-        return CollectionUtils.computeIfAbsent(scriptEngineCache, scriptType,
-            key -> scriptEngineManager.getEngineByName(scriptType));
+        return CollectionUtils.computeIfAbsent(
+                scriptEngineCache, scriptType, key -> scriptEngineManager.getEngineByName(scriptType));
     }
 
     @Override

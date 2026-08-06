@@ -67,8 +67,8 @@
             <optional>true</optional>
         </dependency>
         <dependency>
-            <groupId>com.fasterxml.jackson.core</groupId>
-            <artifactId>jackson-databind</artifactId>
+            <groupId>com.fasterxml.jackson.datatype</groupId>
+            <artifactId>jackson-datatype-jsr310</artifactId>
         </dependency>
 
         <dependency>
@@ -144,8 +144,8 @@
             <scope>test</scope>
         </dependency>
         <dependency>
-            <groupId>org.apache.fury</groupId>
-            <artifactId>fury-core</artifactId>
+            <groupId>org.apache.fory</groupId>
+            <artifactId>fory-core</artifactId>
             <scope>provided</scope>
             <optional>true</optional>
         </dependency>
@@ -153,6 +153,16 @@
             <groupId>cn.com.kingbase</groupId>
             <artifactId>kingbase8</artifactId>
             <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>com.shentongdata</groupId>
+            <artifactId>oscarJDBC8</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>${project.groupId}</groupId>
+            <artifactId>json-common-core</artifactId>
+            <version>${project.version}</version>
         </dependency>
     </dependencies>
 </project>

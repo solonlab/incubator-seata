@@ -16,12 +16,8 @@
  */
 package org.apache.seata.saga.statelang.parser;
 
-import java.io.IOException;
-import java.io.InputStream;
-import java.util.Date;
-import java.util.HashMap;
-import java.util.Map;
-
+import org.apache.seata.common.json.JsonSerializer;
+import org.apache.seata.common.json.JsonSerializerFactory;
 import org.apache.seata.common.util.BeanUtils;
 import org.apache.seata.saga.statelang.domain.StateMachine;
 import org.apache.seata.saga.statelang.domain.StateMachineInstance;
@@ -32,6 +28,12 @@ import org.apache.seata.saga.statelang.validator.ValidationException;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
+import java.io.IOException;
+import java.io.InputStream;
+import java.util.Date;
+import java.util.HashMap;
+import java.util.Map;
+
 /**
  * StateParser tests
  */
@@ -41,17 +43,17 @@ public class StateParserTests {
     public void testParser() throws IOException {
         InputStream inputStream = getInputStreamByPath("statelang/simple_statemachine.json");
         String json = IOUtils.toString(inputStream, "UTF-8");
-        StateMachine stateMachine = StateMachineParserFactory.getStateMachineParser(null).parse(json);
+        StateMachine stateMachine =
+                StateMachineParserFactory.getStateMachineParser(null).parse(json);
         stateMachine.setGmtCreate(new Date());
         Assertions.assertNotNull(stateMachine);
 
-        JsonParser jsonParser = JsonParserFactory.getJsonParser("jackson");
-        String outputJson = jsonParser.toJsonString(stateMachine, true);
+        JsonSerializer jsonSerializer = JsonSerializerFactory.getSerializer("jackson");
+        String outputJson = jsonSerializer.toJSONString(stateMachine, true);
         System.out.println(outputJson);
 
-
-        JsonParser fastjsonParser = JsonParserFactory.getJsonParser("fastjson");
-        String fastjsonOutputJson = fastjsonParser.toJsonString(stateMachine, true);
+        JsonSerializer fastjsonSerializer = JsonSerializerFactory.getSerializer("fastjson");
+        String fastjsonOutputJson = fastjsonSerializer.toJSONString(stateMachine, true);
         System.out.println(fastjsonOutputJson);
 
         Assertions.assertEquals("simpleTestStateMachine", stateMachine.getName());
@@ -62,19 +64,20 @@ public class StateParserTests {
     public void testDesignerJsonTransformer() throws IOException {
         InputStream inputStream = getInputStreamByPath("statelang/simple_statemachine_with_layout.json");
         String json = IOUtils.toString(inputStream, "UTF-8");
-        JsonParser jsonParser = JsonParserFactory.getJsonParser("jackson");
-        Map<String, Object> parsedObj = DesignerJsonTransformer.toStandardJson(jsonParser.parse(json, Map.class, true));
+        JsonSerializer jsonSerializer = JsonSerializerFactory.getSerializer("jackson");
+        Map<String, Object> parsedObj =
+                DesignerJsonTransformer.toStandardJson(jsonSerializer.parseObject(json, Map.class, true));
         Assertions.assertNotNull(parsedObj);
 
-        String outputJson = jsonParser.toJsonString(parsedObj, true);
+        String outputJson = jsonSerializer.toJSONString(parsedObj, true);
         System.out.println(outputJson);
 
-
-        JsonParser fastjsonParser = JsonParserFactory.getJsonParser("fastjson");
-        Map<String, Object> fastjsonParsedObj = DesignerJsonTransformer.toStandardJson(fastjsonParser.parse(json, Map.class, true));
+        JsonSerializer fastjsonSerializer = JsonSerializerFactory.getSerializer("fastjson");
+        Map<String, Object> fastjsonParsedObj =
+                DesignerJsonTransformer.toStandardJson(fastjsonSerializer.parseObject(json, Map.class, true));
         Assertions.assertNotNull(fastjsonParsedObj);
 
-        String fastjsonOutputJson = fastjsonParser.toJsonString(fastjsonParsedObj, true);
+        String fastjsonOutputJson = fastjsonSerializer.toJSONString(fastjsonParsedObj, true);
         System.out.println(fastjsonOutputJson);
     }
 
@@ -91,7 +94,8 @@ public class StateParserTests {
 
     @Test
     public void testMultipleInfiniteLoop() throws IOException {
-        InputStream inputStream = getInputStreamByPath("statelang/simple_statemachine_with_multiple_infinite_loop.json");
+        InputStream inputStream =
+                getInputStreamByPath("statelang/simple_statemachine_with_multiple_infinite_loop.json");
         String json = IOUtils.toString(inputStream, "UTF-8");
         Throwable e = Assertions.assertThrows(ValidationException.class, () -> {
             StateMachineParserFactory.getStateMachineParser(null).parse(json);
@@ -125,15 +129,17 @@ public class StateParserTests {
     public void testGenerateTracingGraphJson() throws Exception {
         InputStream inputStream = getInputStreamByPath("statelang/simple_statemachine_with_layout.json");
         String json = IOUtils.toString(inputStream, "UTF-8");
-        StateMachine stateMachine = StateMachineParserFactory.getStateMachineParser(null).parse(json);
+        StateMachine stateMachine =
+                StateMachineParserFactory.getStateMachineParser(null).parse(json);
         Map<String, String> machineMap = BeanUtils.objectToMap(stateMachine);
-        StateMachineInstance instance = (StateMachineInstance) BeanUtils.mapToObject(machineMap, StateMachineInstanceImpl.class);
+        StateMachineInstance instance =
+                (StateMachineInstance) BeanUtils.mapToObject(machineMap, StateMachineInstanceImpl.class);
         Map<String, Object> context = new HashMap<>();
         context.put("test", "test");
         stateMachine.setContent(json);
         instance.setStateMachine(stateMachine);
-        JsonParser jsonParser = JsonParserFactory.getJsonParser("fastjson");
-        String graphJson = DesignerJsonTransformer.generateTracingGraphJson(instance, jsonParser);
+        JsonSerializer jsonSerializer = JsonSerializerFactory.getSerializer("fastjson");
+        String graphJson = DesignerJsonTransformer.generateTracingGraphJson(instance, jsonSerializer);
         Assertions.assertNotNull(graphJson);
     }
 

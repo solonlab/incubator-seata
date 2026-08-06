@@ -16,21 +16,24 @@
  */
 package org.apache.seata.rm.tcc.json;
 
-import java.lang.reflect.Modifier;
-
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
-
 import org.apache.seata.common.Constants;
 import org.apache.seata.common.loader.LoadLevel;
 import org.apache.seata.integration.tx.api.json.JsonParser;
 
+import java.lang.reflect.Modifier;
 
+/**
+ * @deprecated use {@link org.apache.seata.common.json.impl.GsonJsonSerializer} in json-common-core module instead.
+ */
+@Deprecated
 @LoadLevel(name = Constants.GSON_JSON_PARSER_NAME)
 public class GsonJsonParser implements JsonParser {
 
-    private final Gson gson =
-        new GsonBuilder().excludeFieldsWithModifiers(Modifier.STATIC, Modifier.TRANSIENT).create();
+    private final Gson gson = new GsonBuilder()
+            .excludeFieldsWithModifiers(Modifier.STATIC, Modifier.TRANSIENT)
+            .create();
 
     @Override
     public String toJSONString(Object object) {

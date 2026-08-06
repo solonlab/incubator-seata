@@ -143,8 +143,8 @@ public class RpcContext {
         if (this.clientRMHolderMap == null) {
             this.clientRMHolderMap = new ConcurrentHashMap<>();
         }
-        ConcurrentMap<Integer, RpcContext> portMap = CollectionUtils.computeIfAbsent(clientRMHolderMap, resourceId,
-            key -> new ConcurrentHashMap<>());
+        ConcurrentMap<Integer, RpcContext> portMap =
+                CollectionUtils.computeIfAbsent(clientRMHolderMap, resourceId, key -> new ConcurrentHashMap<>());
         portMap.put(clientPort, this);
     }
 
@@ -285,6 +285,20 @@ public class RpcContext {
     }
 
     /**
+     * Remove resource.
+     *
+     * @param resourceId the resource id
+     */
+    public void removeResource(String resourceId) {
+        if (resourceSets != null) {
+            resourceSets.remove(resourceId);
+        }
+        if (clientRMHolderMap != null) {
+            clientRMHolderMap.remove(resourceId);
+        }
+    }
+
+    /**
      * Add resource.
      *
      * @param resource the resource
@@ -305,7 +319,9 @@ public class RpcContext {
      * @param resources the resources
      */
     public void addResources(Set<String> resources) {
-        if (resources == null) { return; }
+        if (resources == null) {
+            return;
+        }
         if (resourceSets == null) {
             this.resourceSets = new HashSet<String>();
         }
@@ -323,12 +339,11 @@ public class RpcContext {
 
     @Override
     public String toString() {
-        return "RpcContext{" +
-            "applicationId='" + applicationId + '\'' +
-            ", transactionServiceGroup='" + transactionServiceGroup + '\'' +
-            ", clientId='" + clientId + '\'' +
-            ", channel=" + channel +
-            ", resourceSets=" + resourceSets +
-            '}';
+        return "RpcContext{" + "applicationId='"
+                + applicationId + '\'' + ", transactionServiceGroup='"
+                + transactionServiceGroup + '\'' + ", clientId='"
+                + clientId + '\'' + ", channel="
+                + channel + ", resourceSets="
+                + resourceSets + '}';
     }
 }

@@ -16,17 +16,17 @@
  */
 package org.apache.seata.saga.statelang.parser.impl;
 
-import java.util.Map;
-
 import org.apache.seata.saga.statelang.domain.FailEndState;
 import org.apache.seata.saga.statelang.domain.impl.FailEndStateImpl;
 import org.apache.seata.saga.statelang.parser.StateParser;
+
+import java.util.Map;
 
 /**
  * Failed end state parser
  *
  */
-public class FailEndStateParser extends BaseStatePaser implements StateParser<FailEndState> {
+public class FailEndStateParser extends BaseStateParser implements StateParser<FailEndState> {
 
     @Override
     public FailEndState parse(Object node) {
@@ -34,9 +34,9 @@ public class FailEndStateParser extends BaseStatePaser implements StateParser<Fa
         FailEndStateImpl failEndState = new FailEndStateImpl();
         parseBaseAttributes(failEndState, node);
 
-        Map<String, Object> nodeMap = (Map<String, Object>)node;
-        failEndState.setErrorCode((String)nodeMap.get("ErrorCode"));
-        failEndState.setMessage((String)nodeMap.get("Message"));
+        Map<String, Object> nodeMap = (Map<String, Object>) node;
+        failEndState.setErrorCode((String) nodeMap.get("ErrorCode"));
+        failEndState.setMessage((String) nodeMap.get("Message"));
 
         return failEndState;
     }

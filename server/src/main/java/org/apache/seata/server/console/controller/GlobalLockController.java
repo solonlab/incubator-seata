@@ -16,8 +16,7 @@
  */
 package org.apache.seata.server.console.controller;
 
-import javax.annotation.Resource;
-
+import jakarta.annotation.Resource;
 import org.apache.seata.common.result.PageResult;
 import org.apache.seata.common.result.SingleResult;
 import org.apache.seata.server.console.entity.param.GlobalLockParam;
@@ -30,7 +29,6 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
-
 
 /**
  * Global Lock Controller
@@ -78,5 +76,4 @@ public class GlobalLockController {
     public SingleResult<Boolean> check(String xid, String branchId) {
         return globalLockService.check(xid, branchId);
     }
-
 }

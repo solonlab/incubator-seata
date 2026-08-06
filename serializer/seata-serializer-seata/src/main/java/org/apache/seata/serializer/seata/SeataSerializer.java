@@ -24,6 +24,7 @@ import org.apache.seata.common.util.BufferUtils;
 import org.apache.seata.core.protocol.AbstractMessage;
 import org.apache.seata.core.protocol.ProtocolConstants;
 import org.apache.seata.core.serializer.Serializer;
+import org.apache.seata.serializer.seata.serializer.SeataSerializerV2;
 
 import java.nio.ByteBuffer;
 
@@ -39,6 +40,8 @@ public class SeataSerializer implements Serializer {
             versionSeataSerializer = SeataSerializerV0.getInstance();
         } else if (version == ProtocolConstants.VERSION_1) {
             versionSeataSerializer = SeataSerializerV1.getInstance();
+        } else if (version == ProtocolConstants.VERSION_2) {
+            versionSeataSerializer = SeataSerializerV2.getInstance();
         }
         if (versionSeataSerializer == null) {
             throw new UnsupportedOperationException("version is not supported");
@@ -55,13 +58,11 @@ public class SeataSerializer implements Serializer {
         return versionSeataSerializer.deserialize(bytes);
     }
 
-
     static class SeataSerializerV1 implements Serializer {
 
         private static volatile SeataSerializerV1 instance;
 
-        private SeataSerializerV1() {
-        }
+        private SeataSerializerV1() {}
 
         public static SeataSerializerV1 getInstance() {
             if (instance == null) {
@@ -80,20 +81,20 @@ public class SeataSerializer implements Serializer {
                 throw new IllegalArgumentException("AbstractMessage isn't available.");
             }
             AbstractMessage abstractMessage = (AbstractMessage) t;
-            //type code
+            // type code
             short typecode = abstractMessage.getTypeCode();
-            //msg codec
+            // msg codec
             MessageSeataCodec messageCodec = MessageCodecFactory.getMessageCodec(typecode, ProtocolConstants.VERSION_1);
-            //get empty ByteBuffer
+            // get empty ByteBuffer
             ByteBuf out = Unpooled.buffer(1024);
-            //msg encode
+            // msg encode
             messageCodec.encode(t, out);
             byte[] body = new byte[out.readableBytes()];
             out.readBytes(body);
 
             ByteBuffer byteBuffer;
 
-            //typecode + body
+            // typecode + body
             byteBuffer = ByteBuffer.allocate(2 + body.length);
             byteBuffer.putShort(typecode);
             byteBuffer.put(body);
@@ -109,12 +110,12 @@ public class SeataSerializer implements Serializer {
             return deserializeByVersion(bytes, ProtocolConstants.VERSION_1);
         }
     }
+
     static class SeataSerializerV0 implements Serializer {
 
         private static volatile SeataSerializerV0 instance;
 
-        private SeataSerializerV0() {
-        }
+        private SeataSerializerV0() {}
 
         public static SeataSerializerV0 getInstance() {
             if (instance == null) {
@@ -133,13 +134,13 @@ public class SeataSerializer implements Serializer {
                 throw new IllegalArgumentException("AbstractMessage isn't available.");
             }
             AbstractMessage abstractMessage = (AbstractMessage) t;
-            //type code
+            // type code
             short typecode = abstractMessage.getTypeCode();
-            //msg codec
+            // msg codec
             MessageSeataCodec messageCodec = MessageCodecFactory.getMessageCodec(typecode, ProtocolConstants.VERSION_0);
-            //get empty ByteBuffer
+            // get empty ByteBuffer
             ByteBuf out = Unpooled.buffer(1024);
-            //msg encode
+            // msg encode
             messageCodec.encode(t, out);
             byte[] body = new byte[out.readableBytes()];
             out.readBytes(body);
@@ -159,10 +160,9 @@ public class SeataSerializer implements Serializer {
         public <T> T deserialize(byte[] bytes) {
             return deserializeByVersion(bytes, ProtocolConstants.VERSION_0);
         }
-
     }
 
-    private static <T> T deserializeByVersion(byte[] bytes, byte version) {
+    public static <T> T deserializeByVersion(byte[] bytes, byte version) {
         if (bytes == null || bytes.length == 0) {
             throw new IllegalArgumentException("Nothing to decode.");
         }
@@ -170,14 +170,14 @@ public class SeataSerializer implements Serializer {
             throw new IllegalArgumentException("The byte[] isn't available for decode.");
         }
         ByteBuffer byteBuffer = ByteBuffer.wrap(bytes);
-        //typecode
+        // typecode
         short typecode = byteBuffer.getShort();
         ByteBuffer in = byteBuffer.slice();
-        //new message
+        // new message
         AbstractMessage abstractMessage = MessageCodecFactory.getMessage(typecode);
-        //get messageCodec
+        // get messageCodec
         MessageSeataCodec messageCodec = MessageCodecFactory.getMessageCodec(typecode, version);
-        //decode
+        // decode
         messageCodec.decode(abstractMessage, in);
         return (T) abstractMessage;
     }

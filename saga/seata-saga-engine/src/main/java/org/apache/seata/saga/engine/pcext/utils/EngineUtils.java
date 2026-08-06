@@ -16,12 +16,7 @@
  */
 package org.apache.seata.saga.engine.pcext.utils;
 
-import java.util.ArrayList;
-import java.util.Date;
-import java.util.List;
-import java.util.Map;
-import java.util.concurrent.Semaphore;
-
+import org.apache.seata.common.lock.ResourceLock;
 import org.apache.seata.common.util.CollectionUtils;
 import org.apache.seata.common.util.StringUtils;
 import org.apache.seata.saga.engine.AsyncCallback;
@@ -39,11 +34,19 @@ import org.apache.seata.saga.statelang.domain.impl.AbstractTaskState;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.util.ArrayList;
+import java.util.Date;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.Semaphore;
+
 /**
  */
 public class EngineUtils {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(EngineUtils.class);
+
+    private static final ResourceLock EXCEPTION_LOCK = new ResourceLock();
 
     /**
      * generate parent id
@@ -82,18 +85,18 @@ public class EngineUtils {
 
         if (context.hasVariable(DomainConstants.VAR_NAME_IS_LOOP_STATE)) {
             if (context.hasVariable(DomainConstants.LOOP_SEMAPHORE)) {
-                Semaphore semaphore = (Semaphore)context.getVariable(DomainConstants.LOOP_SEMAPHORE);
+                Semaphore semaphore = (Semaphore) context.getVariable(DomainConstants.LOOP_SEMAPHORE);
                 semaphore.release();
             }
             return;
         }
 
-        StateMachineInstance stateMachineInstance = (StateMachineInstance)context.getVariable(
-            DomainConstants.VAR_NAME_STATEMACHINE_INST);
+        StateMachineInstance stateMachineInstance =
+                (StateMachineInstance) context.getVariable(DomainConstants.VAR_NAME_STATEMACHINE_INST);
 
         stateMachineInstance.setGmtEnd(new Date());
 
-        Exception exp = (Exception)context.getVariable(DomainConstants.VAR_NAME_CURRENT_EXCEPTION);
+        Exception exp = (Exception) context.getVariable(DomainConstants.VAR_NAME_CURRENT_EXCEPTION);
         if (exp != null) {
             stateMachineInstance.setException(exp);
             if (LOGGER.isDebugEnabled()) {
@@ -101,13 +104,13 @@ public class EngineUtils {
             }
         }
 
-        StateMachineConfig stateMachineConfig = (StateMachineConfig)context.getVariable(
-            DomainConstants.VAR_NAME_STATEMACHINE_CONFIG);
+        StateMachineConfig stateMachineConfig =
+                (StateMachineConfig) context.getVariable(DomainConstants.VAR_NAME_STATEMACHINE_CONFIG);
 
         stateMachineConfig.getStatusDecisionStrategy().decideOnEndState(context, stateMachineInstance, exp);
 
-        stateMachineInstance.getEndParams().putAll(
-            (Map<String, Object>)context.getVariable(DomainConstants.VAR_NAME_STATEMACHINE_CONTEXT));
+        stateMachineInstance.getEndParams().putAll((Map<String, Object>)
+                context.getVariable(DomainConstants.VAR_NAME_STATEMACHINE_CONTEXT));
 
         StateInstruction instruction = context.getInstruction(StateInstruction.class);
         instruction.setEnd(true);
@@ -119,7 +122,7 @@ public class EngineUtils {
             stateMachineConfig.getStateLogStore().recordStateMachineFinished(stateMachineInstance, context);
         }
 
-        AsyncCallback callback = (AsyncCallback)context.getVariable(DomainConstants.VAR_NAME_ASYNC_CALLBACK);
+        AsyncCallback callback = (AsyncCallback) context.getVariable(DomainConstants.VAR_NAME_ASYNC_CALLBACK);
         if (callback != null) {
             if (exp != null) {
                 callback.onError(context, stateMachineInstance, exp);
@@ -141,16 +144,16 @@ public class EngineUtils {
             return;
         }
 
-        StateMachineInstance stateMachineInstance = (StateMachineInstance)context.getVariable(
-            DomainConstants.VAR_NAME_STATEMACHINE_INST);
+        StateMachineInstance stateMachineInstance =
+                (StateMachineInstance) context.getVariable(DomainConstants.VAR_NAME_STATEMACHINE_INST);
 
-        StateMachineConfig stateMachineConfig = (StateMachineConfig)context.getVariable(
-            DomainConstants.VAR_NAME_STATEMACHINE_CONFIG);
+        StateMachineConfig stateMachineConfig =
+                (StateMachineConfig) context.getVariable(DomainConstants.VAR_NAME_STATEMACHINE_CONFIG);
 
         stateMachineConfig.getStatusDecisionStrategy().decideOnTaskStateFail(context, stateMachineInstance, exp);
 
-        stateMachineInstance.getEndParams().putAll(
-            (Map<String, Object>)context.getVariable(DomainConstants.VAR_NAME_STATEMACHINE_CONTEXT));
+        stateMachineInstance.getEndParams().putAll((Map<String, Object>)
+                context.getVariable(DomainConstants.VAR_NAME_STATEMACHINE_CONTEXT));
 
         StateInstruction instruction = context.getInstruction(StateInstruction.class);
         instruction.setEnd(true);
@@ -163,7 +166,7 @@ public class EngineUtils {
             stateMachineConfig.getStateLogStore().recordStateMachineFinished(stateMachineInstance, context);
         }
 
-        AsyncCallback callback = (AsyncCallback)context.getVariable(DomainConstants.VAR_NAME_ASYNC_CALLBACK);
+        AsyncCallback callback = (AsyncCallback) context.getVariable(DomainConstants.VAR_NAME_ASYNC_CALLBACK);
         if (callback != null) {
             callback.onError(context, stateMachineInstance, exp);
         }
@@ -198,7 +201,7 @@ public class EngineUtils {
                 List<Class<? extends Exception>> exceptionClasses = exceptionMatch.getExceptionClasses();
                 if (CollectionUtils.isNotEmpty(exceptions)) {
                     if (exceptionClasses == null) {
-                        synchronized (exceptionMatch) {
+                        try (ResourceLock ignored = EXCEPTION_LOCK.obtain()) {
                             exceptionClasses = exceptionMatch.getExceptionClasses();
                             if (exceptionClasses == null) {
 
@@ -208,14 +211,16 @@ public class EngineUtils {
                                     Class<? extends Exception> expClass = null;
                                     try {
                                         expClass = (Class<? extends Exception>) ScriptTaskStateHandler.class
-                                                .getClassLoader().loadClass(expStr);
+                                                .getClassLoader()
+                                                .loadClass(expStr);
                                     } catch (Exception e1) {
 
                                         LOGGER.warn("Cannot Load Exception Class by getClass().getClassLoader()", e1);
 
                                         try {
                                             expClass = (Class<? extends Exception>) Thread.currentThread()
-                                                    .getContextClassLoader().loadClass(expStr);
+                                                    .getContextClassLoader()
+                                                    .loadClass(expStr);
                                         } catch (Exception e2) {
                                             LOGGER.warn(
                                                     "Cannot Load Exception Class by Thread.currentThread()"
@@ -235,17 +240,18 @@ public class EngineUtils {
 
                     for (Class<? extends Exception> expClass : exceptionClasses) {
                         if (expClass.isAssignableFrom(e.getClass())) {
-                            ((HierarchicalProcessContext) context).setVariableLocally(
-                                    DomainConstants.VAR_NAME_CURRENT_EXCEPTION_ROUTE, exceptionMatch.getNext());
+                            ((HierarchicalProcessContext) context)
+                                    .setVariableLocally(
+                                            DomainConstants.VAR_NAME_CURRENT_EXCEPTION_ROUTE, exceptionMatch.getNext());
                             return;
                         }
                     }
-
                 }
             }
         }
 
         LOGGER.error("Task execution failed and no catches configured");
-        ((HierarchicalProcessContext) context).setVariableLocally(DomainConstants.VAR_NAME_IS_EXCEPTION_NOT_CATCH, true);
+        ((HierarchicalProcessContext) context)
+                .setVariableLocally(DomainConstants.VAR_NAME_IS_EXCEPTION_NOT_CATCH, true);
     }
 }

@@ -16,8 +16,7 @@
  */
 package org.apache.seata.server.console.controller;
 
-import javax.annotation.Resource;
-
+import jakarta.annotation.Resource;
 import org.apache.seata.common.result.SingleResult;
 import org.apache.seata.server.console.service.BranchSessionService;
 import org.slf4j.Logger;
@@ -34,6 +33,7 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/api/v1/console/branchSession")
 public class BranchSessionController {
     private static final Logger LOGGER = LoggerFactory.getLogger(BranchSessionController.class);
+
     @Resource(type = BranchSessionService.class)
     private BranchSessionService branchSessionService;
 

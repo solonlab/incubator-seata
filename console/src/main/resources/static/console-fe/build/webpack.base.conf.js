@@ -43,15 +43,21 @@ module.exports = {
       components: resolve('src/components'),
       pages: resolve('src/pages'),
     },
-  },
-  node: {
-    fs: 'empty'
+    fallback: {
+      fs: false
+    },
   },
   module: {
     rules: [
       {
         test: /\.(css|scss)$/,
-        use: [isDev ? 'style-loader' : MiniCssExtractPlugin.loader, 'css-loader', 'sass-loader'],
+        use: [isDev ? 'style-loader' : MiniCssExtractPlugin.loader, 'css-loader', {
+          loader: 'sass-loader',
+          options: {
+            implementation: require('sass'),
+            api: 'modern',
+          },
+        }],
       },
       {
         test: /\.(js|jsx)$/,

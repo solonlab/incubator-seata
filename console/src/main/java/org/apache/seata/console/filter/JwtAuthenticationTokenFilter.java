@@ -16,13 +16,10 @@
  */
 package org.apache.seata.console.filter;
 
-import java.io.IOException;
-
-import javax.servlet.FilterChain;
-import javax.servlet.ServletException;
-import javax.servlet.http.HttpServletRequest;
-import javax.servlet.http.HttpServletResponse;
-
+import jakarta.servlet.FilterChain;
+import jakarta.servlet.ServletException;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 import org.apache.seata.console.config.WebSecurityConfig;
 import org.apache.seata.console.utils.JwtTokenUtils;
 import org.springframework.security.core.Authentication;
@@ -30,13 +27,15 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.util.StringUtils;
 import org.springframework.web.filter.OncePerRequestFilter;
 
+import java.io.IOException;
+
 /**
  * jwt auth token filter
  *
  */
 public class JwtAuthenticationTokenFilter extends OncePerRequestFilter {
 
-    private JwtTokenUtils tokenProvider;
+    private final JwtTokenUtils tokenProvider;
 
     /**
      * Instantiates a new Jwt authentication token filter.
@@ -49,10 +48,12 @@ public class JwtAuthenticationTokenFilter extends OncePerRequestFilter {
 
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain chain)
-        throws IOException, ServletException {
+            throws IOException, ServletException {
         String jwt = resolveToken(request);
 
-        if (jwt != null && !"".equals(jwt.trim()) && SecurityContextHolder.getContext().getAuthentication() == null) {
+        if (jwt != null
+                && !jwt.trim().isEmpty()
+                && SecurityContextHolder.getContext().getAuthentication() == null) {
             if (this.tokenProvider.validateToken(jwt)) {
                 /**
                  * get auth info
@@ -66,6 +67,12 @@ public class JwtAuthenticationTokenFilter extends OncePerRequestFilter {
         }
 
         chain.doFilter(request, response);
+    }
+
+    @Override
+    protected boolean shouldNotFilterAsyncDispatch() {
+        // allow this filter to run during async dispatch so JWT is applied for async requests
+        return false;
     }
 
     /**
@@ -83,4 +90,3 @@ public class JwtAuthenticationTokenFilter extends OncePerRequestFilter {
         return null;
     }
 }
-

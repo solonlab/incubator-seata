@@ -16,46 +16,7 @@
  */
 package org.apache.seata.serializer.seata;
 
-import java.nio.charset.Charset;
-import java.nio.charset.StandardCharsets;
-
-import org.apache.seata.serializer.seata.protocol.BatchResultMessageCodec;
-import org.apache.seata.serializer.seata.protocol.MergeResultMessageCodec;
-import org.apache.seata.serializer.seata.protocol.MergedWarpMessageCodec;
-import org.apache.seata.serializer.seata.protocol.RegisterRMRequestCodec;
-import org.apache.seata.serializer.seata.protocol.RegisterRMResponseCodec;
-import org.apache.seata.serializer.seata.protocol.RegisterTMRequestCodec;
-import org.apache.seata.serializer.seata.protocol.RegisterTMResponseCodec;
-import org.apache.seata.serializer.seata.protocol.transaction.BranchCommitRequestCodec;
-import org.apache.seata.serializer.seata.protocol.transaction.BranchCommitResponseCodec;
-import org.apache.seata.serializer.seata.protocol.transaction.BranchRegisterRequestCodec;
-import org.apache.seata.serializer.seata.protocol.transaction.BranchRegisterResponseCodec;
-import org.apache.seata.serializer.seata.protocol.transaction.BranchReportRequestCodec;
-import org.apache.seata.serializer.seata.protocol.transaction.BranchReportResponseCodec;
-import org.apache.seata.serializer.seata.protocol.transaction.BranchRollbackRequestCodec;
-import org.apache.seata.serializer.seata.protocol.transaction.BranchRollbackResponseCodec;
-import org.apache.seata.serializer.seata.protocol.transaction.GlobalBeginRequestCodec;
-import org.apache.seata.serializer.seata.protocol.transaction.GlobalBeginResponseCodec;
-import org.apache.seata.serializer.seata.protocol.transaction.GlobalCommitRequestCodec;
-import org.apache.seata.serializer.seata.protocol.transaction.GlobalCommitResponseCodec;
-import org.apache.seata.serializer.seata.protocol.transaction.GlobalLockQueryRequestCodec;
-import org.apache.seata.serializer.seata.protocol.transaction.GlobalLockQueryResponseCodec;
-import org.apache.seata.serializer.seata.protocol.transaction.GlobalReportRequestCodec;
-import org.apache.seata.serializer.seata.protocol.transaction.GlobalReportResponseCodec;
-import org.apache.seata.serializer.seata.protocol.transaction.GlobalRollbackRequestCodec;
-import org.apache.seata.serializer.seata.protocol.transaction.GlobalRollbackResponseCodec;
-import org.apache.seata.serializer.seata.protocol.transaction.GlobalStatusRequestCodec;
-import org.apache.seata.serializer.seata.protocol.transaction.GlobalStatusResponseCodec;
-import org.apache.seata.serializer.seata.protocol.transaction.UndoLogDeleteRequestCodec;
-import org.apache.seata.core.protocol.AbstractMessage;
-import org.apache.seata.core.protocol.BatchResultMessage;
-import org.apache.seata.core.protocol.MergeResultMessage;
-import org.apache.seata.core.protocol.MergedWarpMessage;
-import org.apache.seata.core.protocol.MessageType;
-import org.apache.seata.core.protocol.RegisterRMRequest;
-import org.apache.seata.core.protocol.RegisterRMResponse;
-import org.apache.seata.core.protocol.RegisterTMRequest;
-import org.apache.seata.core.protocol.RegisterTMResponse;
+import org.apache.seata.core.protocol.*;
 import org.apache.seata.core.protocol.transaction.BranchCommitRequest;
 import org.apache.seata.core.protocol.transaction.BranchCommitResponse;
 import org.apache.seata.core.protocol.transaction.BranchRegisterRequest;
@@ -77,6 +38,41 @@ import org.apache.seata.core.protocol.transaction.GlobalRollbackResponse;
 import org.apache.seata.core.protocol.transaction.GlobalStatusRequest;
 import org.apache.seata.core.protocol.transaction.GlobalStatusResponse;
 import org.apache.seata.core.protocol.transaction.UndoLogDeleteRequest;
+import org.apache.seata.serializer.seata.protocol.BatchResultMessageCodec;
+import org.apache.seata.serializer.seata.protocol.MergeResultMessageCodec;
+import org.apache.seata.serializer.seata.protocol.MergedWarpMessageCodec;
+import org.apache.seata.serializer.seata.protocol.RegisterRMRequestCodec;
+import org.apache.seata.serializer.seata.protocol.RegisterRMResponseCodec;
+import org.apache.seata.serializer.seata.protocol.RegisterTMRequestCodec;
+import org.apache.seata.serializer.seata.protocol.RegisterTMResponseCodec;
+import org.apache.seata.serializer.seata.protocol.UnregisterRMRequestCodec;
+import org.apache.seata.serializer.seata.protocol.UnregisterRMResponseCodec;
+import org.apache.seata.serializer.seata.protocol.transaction.BranchCommitRequestCodec;
+import org.apache.seata.serializer.seata.protocol.transaction.BranchCommitResponseCodec;
+import org.apache.seata.serializer.seata.protocol.transaction.BranchRegisterRequestCodec;
+import org.apache.seata.serializer.seata.protocol.transaction.BranchRegisterResponseCodec;
+import org.apache.seata.serializer.seata.protocol.transaction.BranchReportRequestCodec;
+import org.apache.seata.serializer.seata.protocol.transaction.BranchReportResponseCodec;
+import org.apache.seata.serializer.seata.protocol.transaction.BranchRollbackRequestCodec;
+import org.apache.seata.serializer.seata.protocol.transaction.BranchRollbackResponseCodec;
+import org.apache.seata.serializer.seata.protocol.transaction.GlobalBeginRequestCodec;
+import org.apache.seata.serializer.seata.protocol.transaction.GlobalBeginResponseCodec;
+import org.apache.seata.serializer.seata.protocol.transaction.GlobalCommitRequestCodec;
+import org.apache.seata.serializer.seata.protocol.transaction.GlobalCommitResponseCodec;
+import org.apache.seata.serializer.seata.protocol.transaction.GlobalLockQueryRequestCodec;
+import org.apache.seata.serializer.seata.protocol.transaction.GlobalLockQueryResponseCodec;
+import org.apache.seata.serializer.seata.protocol.transaction.GlobalReportRequestCodec;
+import org.apache.seata.serializer.seata.protocol.transaction.GlobalReportResponseCodec;
+import org.apache.seata.serializer.seata.protocol.transaction.GlobalRollbackRequestCodec;
+import org.apache.seata.serializer.seata.protocol.transaction.GlobalRollbackResponseCodec;
+import org.apache.seata.serializer.seata.protocol.transaction.GlobalStatusRequestCodec;
+import org.apache.seata.serializer.seata.protocol.transaction.GlobalStatusResponseCodec;
+import org.apache.seata.serializer.seata.protocol.transaction.UndoLogDeleteRequestCodec;
+import org.apache.seata.serializer.seata.protocol.v2.RegisterRMResponseCodecV2;
+import org.apache.seata.serializer.seata.protocol.v2.RegisterTMResponseCodecV2;
+
+import java.nio.charset.Charset;
+import java.nio.charset.StandardCharsets;
 
 /**
  * The type Message codec factory.
@@ -117,13 +113,27 @@ public class MessageCodecFactory {
                 msgCodec = new RegisterTMRequestCodec();
                 break;
             case MessageType.TYPE_REG_CLT_RESULT:
-                msgCodec = new RegisterTMResponseCodec();
+                if (version == ProtocolConstants.VERSION_2) {
+                    msgCodec = new RegisterTMResponseCodecV2();
+                } else {
+                    msgCodec = new RegisterTMResponseCodec();
+                }
                 break;
             case MessageType.TYPE_REG_RM:
                 msgCodec = new RegisterRMRequestCodec();
                 break;
+            case MessageType.TYPE_UNREG_RM:
+                msgCodec = new UnregisterRMRequestCodec();
+                break;
+            case MessageType.TYPE_UNREG_RM_RESULT:
+                msgCodec = new UnregisterRMResponseCodec();
+                break;
             case MessageType.TYPE_REG_RM_RESULT:
-                msgCodec = new RegisterRMResponseCodec();
+                if (version == ProtocolConstants.VERSION_2) {
+                    msgCodec = new RegisterRMResponseCodecV2();
+                } else {
+                    msgCodec = new RegisterRMResponseCodec();
+                }
                 break;
             case MessageType.TYPE_BRANCH_COMMIT:
                 msgCodec = new BranchCommitRequestCodec();
@@ -229,6 +239,12 @@ public class MessageCodecFactory {
             case MessageType.TYPE_REG_RM_RESULT:
                 abstractMessage = new RegisterRMResponse();
                 break;
+            case MessageType.TYPE_UNREG_RM:
+                abstractMessage = new UnregisterRMRequest();
+                break;
+            case MessageType.TYPE_UNREG_RM_RESULT:
+                abstractMessage = new UnregisterRMResponse();
+                break;
             case MessageType.TYPE_BRANCH_COMMIT:
                 abstractMessage = new BranchCommitRequest();
                 break;
@@ -305,5 +321,4 @@ public class MessageCodecFactory {
 
         throw new IllegalArgumentException("not support typeCode," + typeCode);
     }
-
 }
