@@ -42,12 +42,28 @@ public interface StarterConstants {
     String LOG_PREFIX = SEATA_PREFIX + ".log";
     String COMPRESS_PREFIX = UNDO_PREFIX + ".compress";
     String TCC_PREFIX = SEATA_PREFIX + ".tcc";
+    String JSON_PREFIX = SEATA_PREFIX + ".json";
     String TCC_FENCE_PREFIX = TCC_PREFIX + ".fence";
     String SAGA_STATE_MACHINE_PREFIX = SAGA_PREFIX + ".state-machine";
     String SAGA_ASYNC_THREAD_POOL_PREFIX = SAGA_STATE_MACHINE_PREFIX + ".async-thread-pool";
 
     String REGISTRY_PREFIX = SEATA_PREFIX + ".registry";
-    String REGISTRY_PREFERED_NETWORKS = ConfigurationKeys.FILE_ROOT_REGISTRY + ".preferredNetworks";
+    /**
+     * Configuration key for preferred network address patterns (regex or prefix match).
+     * Used to select specific network interfaces when multiple are available.
+     */
+    String REGISTRY_PREFERRED_NETWORKS = ConfigurationKeys.FILE_ROOT_REGISTRY + ".preferredNetworks";
+    /**
+     * @deprecated misspelled, kept for backward compatibility. Use {@link #REGISTRY_PREFERRED_NETWORKS} instead.
+     */
+    @Deprecated
+    String REGISTRY_PREFERED_NETWORKS = REGISTRY_PREFERRED_NETWORKS;
+    /**
+     * Configuration key for network interface name patterns to ignore (regex supported).
+     * Useful for filtering out virtual interfaces like VMware, VirtualBox, Docker, etc.
+     * Example value: "VMware.*,VirtualBox.*,bridge.*,docker.*,veth.*"
+     */
+    String REGISTRY_IGNORED_INTERFACES = ConfigurationKeys.FILE_ROOT_REGISTRY + ".ignoredInterfaces";
     String REGISTRY_NACOS_PREFIX = REGISTRY_PREFIX + ".nacos";
     String REGISTRY_RAFT_PREFIX = REGISTRY_PREFIX + ".raft";
     String REGISTRY_EUREKA_PREFIX = REGISTRY_PREFIX + ".eureka";
@@ -58,6 +74,7 @@ public interface StarterConstants {
     String REGISTRY_ETCD3_PREFIX = REGISTRY_PREFIX + ".etcd3";
     String REGISTRY_SOFA_PREFIX = REGISTRY_PREFIX + ".sofa";
     String REGISTRY_CUSTOM_PREFIX = REGISTRY_PREFIX + ".custom";
+    String REGISTRY_METADATA_PREFIX = REGISTRY_PREFIX + ".metadata";
 
     String CONFIG_PREFIX = SEATA_PREFIX + ".config";
     String CONFIG_NACOS_PREFIX = CONFIG_PREFIX + ".nacos";

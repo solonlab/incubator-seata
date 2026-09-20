@@ -25,6 +25,9 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import javax.sql.DataSource;
+import java.util.Arrays;
+import java.util.HashSet;
+import java.util.Set;
 
 /**
  * @author noear 2024/10/25 created
@@ -32,9 +35,20 @@ import javax.sql.DataSource;
 public class SeataAutoDataSourceProxyCreator implements BeanWrap.Proxy {
     private static final Logger LOGGER = LoggerFactory.getLogger(SeataAutoDataSourceProxyCreator.class);
 
+    /**
+     * Data source bean classes (fully-qualified names) excluded from auto-proxying,
+     * aligned with Spring's {@code shouldSkip} of {@code SeataAutoDataSourceProxyCreator}.
+     */
+    private final Set<String> excludes;
+
     private final String dataSourceProxyMode;
 
     public SeataAutoDataSourceProxyCreator(String dataSourceProxyMode) {
+        this(new String[0], dataSourceProxyMode);
+    }
+
+    public SeataAutoDataSourceProxyCreator(String[] excludes, String dataSourceProxyMode) {
+        this.excludes = new HashSet<>(Arrays.asList(excludes));
         this.dataSourceProxyMode = dataSourceProxyMode;
     }
 
@@ -42,6 +56,14 @@ public class SeataAutoDataSourceProxyCreator implements BeanWrap.Proxy {
     public Object getProxy(BeanWrap bw, Object bean) {
         // we only care DataSource bean
         if (!(bean instanceof DataSource)) {
+            return bean;
+        }
+
+        // skip the data source bean excluded by seata.excludes-for-auto-proxying
+        // (matched by fully-qualified class name, same as spring-boot-starter)
+        if (excludes.contains(bean.getClass().getName())) {
+            LOGGER.debug("Skip auto proxy data source '{}', excluded by seata.excludes-for-auto-proxying.",
+                    bean.getClass().getName());
             return bean;
         }
 

@@ -31,7 +31,7 @@ import org.apache.seata.common.util.CollectionUtils;
 import org.apache.seata.common.util.ReflectionUtil;
 import org.apache.seata.config.Configuration;
 import org.apache.seata.config.ExtConfigurationProvider;
-import org.apache.commons.lang.StringUtils;
+import org.apache.commons.lang3.StringUtils;
 import org.noear.solon.Solon;
 import org.noear.solon.core.AppClassLoader;
 import org.noear.solon.core.util.ConvertUtil;

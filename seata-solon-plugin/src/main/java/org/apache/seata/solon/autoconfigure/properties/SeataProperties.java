@@ -58,14 +58,25 @@ public class SeataProperties {
     private boolean exposeProxy = false;
     /**
      * The scan packages. If empty, will scan all beans.
+     * <p>
+     * <b>Solon note:</b> kept for configuration compatibility with the spring-boot-starter.
+     * The Solon plugin wires {@code @GlobalTransactional}/{@code @GlobalLock} via annotation
+     * interceptors on beans registered in the Solon context, so there is no package scanner
+     * and this property does not participate in bean discovery here.
      */
     private String[] scanPackages = {};
     /**
      * Specifies beans that won't be scanned in the GlobalTransactionScanner
+     * <p>
+     * <b>Solon note:</b> kept for configuration compatibility with the spring-boot-starter;
+     * not consumed by this plugin (see {@link #scanPackages}).
      */
     private String[] excludesForScanning = {};
     /**
-     * Specifies which datasource bean are not eligible for auto-proxying
+     * Specifies which datasource bean are not eligible for auto-proxying.
+     * <p>
+     * Entries are fully-qualified class names, matched against the data source bean's
+     * class, same as the spring-boot-starter (Spring's {@code shouldSkip}).
      */
     private String[] excludesForAutoProxying = {};
 

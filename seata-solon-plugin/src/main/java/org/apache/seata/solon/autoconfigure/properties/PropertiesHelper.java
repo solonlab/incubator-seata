@@ -49,6 +49,7 @@ public class PropertiesHelper {
         PROPERTY_BEAN_MAP.put(REGISTRY_ZK_PREFIX, RegistryZooKeeperProperties.class);
         PROPERTY_BEAN_MAP.put(REGISTRY_CUSTOM_PREFIX, RegistryCustomProperties.class);
         PROPERTY_BEAN_MAP.put(REGISTRY_RAFT_PREFIX, RegistryRaftProperties.class);
+        PROPERTY_BEAN_MAP.put(REGISTRY_METADATA_PREFIX, RegistryMetadataProperties.class);
 
         PROPERTY_BEAN_MAP.put(THREAD_FACTORY_PREFIX, ThreadFactoryProperties.class);
         PROPERTY_BEAN_MAP.put(TRANSPORT_PREFIX, TransportProperties.class);
@@ -67,5 +68,7 @@ public class PropertiesHelper {
         PROPERTY_BEAN_MAP.put(LOAD_BALANCE_PREFIX, LoadBalanceProperties.class);
         PROPERTY_BEAN_MAP.put(SAGA_ASYNC_THREAD_POOL_PREFIX, SagaAsyncThreadPoolProperties.class);
         PROPERTY_BEAN_MAP.put(TCC_PREFIX, SeataTccProperties.class);
+        PROPERTY_BEAN_MAP.put(TCC_FENCE_PREFIX, SeataFenceProperties.class);
+        PROPERTY_BEAN_MAP.put(JSON_PREFIX, SeataJsonProperties.class);
     }
 }
